@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "libs/*"
+    "libs/*",
+    "apps/*"
   ],
   "main": "index.js",
   "scripts": {

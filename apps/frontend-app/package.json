@@ -1,0 +1,13 @@
+{
+  "name": "frontend-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@workspace/common": "*",
+    "@workspace/browser": "*"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0"
+  }
+}

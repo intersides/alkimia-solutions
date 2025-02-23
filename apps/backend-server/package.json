@@ -1,0 +1,16 @@
+{
+  "name": "backend-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "dependencies": {
+    "@workspace/common": "*",
+    "@workspace/node": "*"
+  },
+  "scripts": {
+    "dev": "nodemon --watch . --watch ../../libs -e js,json main.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
