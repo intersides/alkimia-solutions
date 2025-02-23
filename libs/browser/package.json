@@ -1,0 +1,7 @@
+{
+  "name": "@workspace/browser",
+  "version": "1.0.0",
+  "main": "index.js",
+  "browser": "index.js",
+  "type": "module"
+}
