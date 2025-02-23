@@ -1,0 +1,18 @@
+services:
+
+  backend:
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./apps/backend:/app
+      - ./libs:/app/libs
+      - /app/node_modules
+
+  frontend:
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./apps/frontend:/app
+      - ./libs:/app/libs
+      - /app/node_modules
+

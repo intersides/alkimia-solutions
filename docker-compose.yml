@@ -1,28 +1,33 @@
-version: "3.8"
-
 services:
-  backend-server:
-    build:
-      context: .
-      dockerfile: backend.Dockerfile
-    volumes:
-      - ./apps/backend-server:/app
-      - ./libs:/app/libs  # Ensure shared libraries are available
-      - /app/node_modules  # Avoid overwriting node_modules
-    ports:
-      - "7070:7070"
-    command: ["npm", "run", "dev"]
 
-  frontend-app:
+  backend:
     build:
       context: .
-      dockerfile: frontend.Dockerfile
-    volumes:
-      - ./apps/frontend-app:/app
-      - ./libs:/app/libs
-      - /app/node_modules
+      dockerfile: ./Dockerfile
+      args:
+        SERVICE: backend
     ports:
-      - "3000:3000"
+      - "8080:3000" # Map host port 4001 to container's port 3000
     environment:
-      - CHOKIDAR_USEPOLLING=true
-    command: ["npm", "run", "dev"]
+      NODE_ENV: production
+    networks:
+      - intersides-workspace-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        SERVICE: frontend
+    ports:
+      - "3000:3000" # Map host port 4002 to container's port 3000
+    environment:
+      NODE_ENV: production
+    networks:
+      - intersides-workspace-network
+
+networks:
+  intersides-workspace-network:
+    driver: bridge
+#    driver: overlay
+#    attachable: true

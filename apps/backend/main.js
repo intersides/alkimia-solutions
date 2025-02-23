@@ -2,7 +2,10 @@ import http from "http";
 import { sayHello } from "@workspace/common";
 import { getSystemInfo } from "@workspace/node";
 
-const PORT = 7070;
+console.log("!NODE_ENV:", process.env.NODE_ENV);
+
+const PORT = 3000;
+
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });

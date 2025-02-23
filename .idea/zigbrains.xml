@@ -4,6 +4,7 @@
     <option name="zlsPath" value="$USER_HOME$/TOOLS/zls" />
   </component>
   <component name="ZigProjectSettings">
+    <option name="explicitPathToStd" value="$USER_HOME$/TOOLS/zig-0.14.0-dev/lib/std" />
     <option name="toolchainPath" value="/usr/local/bin" />
   </component>
 </project>

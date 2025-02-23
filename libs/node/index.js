@@ -4,5 +4,6 @@ export function getSystemInfo() {
     return {
         platform: os.platform(),
         cpus: os.cpus().length,
+        message:"greetings!!"
     };
 }
