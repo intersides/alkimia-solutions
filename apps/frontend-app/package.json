@@ -4,10 +4,15 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
-    "@workspace/common": "*",
-    "@workspace/browser": "*"
+    "@workspace/browser": "*",
+    "@workspace/common": "*"
   },
   "scripts": {
-    "dev": "vite --host 0.0.0.0"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.1.0"
   }
 }

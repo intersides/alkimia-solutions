@@ -10,7 +10,7 @@ services:
       - ./libs:/app/libs  # Ensure shared libraries are available
       - /app/node_modules  # Avoid overwriting node_modules
     ports:
-      - "5000:5000"
+      - "7070:7070"
     command: ["npm", "run", "dev"]
 
   frontend-app:
