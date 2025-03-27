@@ -3,5 +3,5 @@ export function sayHello(name) {
 }
 
 export function printServerInfo(protocol, address, port, env) {
-    console.log(`✅ Backend server running at ${protocol}://${address}:${port} in ${env} mode.`);
+    console.log(`✅ Backend server running at ${protocol}://${address} in ${env} mode.`);
 }

@@ -12,7 +12,7 @@ document.querySelector('#app').innerHTML = `
     <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
       <img src="${javascriptLogo}" class="logo vanilla" alt="JavaScript logo" />
     </a>
-    <h1 id="message">Hello Vite!</h1>
+    <h1 id="message">Hello Vite</h1>
     <div class="card">
       <button id="counter" type="button"></button>
     </div>
@@ -24,5 +24,5 @@ document.querySelector('#app').innerHTML = `
 
 setupCounter(document.querySelector('#counter'))
 
-document.getElementById("message").textContent = sayHello("Vite App!");
+document.getElementById("message").textContent = sayHello("Vite My App");
 console.log("Vite frontend is working!");

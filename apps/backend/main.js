@@ -8,7 +8,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
 
     const response = {
-        message: sayHello("Backend Server"),
+        message: sayHello(" My Backend Server"),
         system: getSystemInfo(),
     };
 
@@ -16,6 +16,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    printServerInfo("http","localhost", PORT, process.env.NODE_ENV);
+    printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN+"."+process.env.DOMAIN, null, process.env.ENV);
     console.log("system info: ", getSystemInfo());
 });

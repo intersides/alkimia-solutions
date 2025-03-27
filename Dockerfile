@@ -41,7 +41,7 @@ RUN if [ "$SERVICE" = "frontend" ]; then \
 # Stage 3: Lightweight production image
 FROM node:23-alpine AS runner
 ARG SERVICE
-ARG NODE_ENV
+ARG ENV
 
 WORKDIR /app
 
@@ -55,6 +55,6 @@ COPY --from=builder /app/libs/node ./libs/node
 COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
-#CMD ["npm", "run", "${NODE_ENV}"]
-CMD sh -c 'npm run "${NODE_ENV}"'
+#CMD ["npm", "run", "${ENV}"]
+CMD sh -c 'npm run "${ENV}"'
 

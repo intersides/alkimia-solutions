@@ -8,8 +8,8 @@
     "@workspace/node": "*"
   },
   "scripts": {
-    "development": "NODE_ENV=development nodemon --watch . --watch ../../libs -e js,json main.js",
-    "production": "NODE_ENV=production node main.js"
+    "development": "ENV=development nodemon --watch . --watch ../../libs -e js,json main.js",
+    "production": "ENV=production node main.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
