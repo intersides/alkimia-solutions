@@ -6,8 +6,6 @@ services:
       - "80:80"
       - "443:443"
       - "8080:8080"
-    deploy:
-      replicas: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/localtime:/etc/localtime:ro
@@ -20,15 +18,14 @@ services:
       - intersides-workspace-network
 
   backend:
-    container_name: backend
     build:
       context: .
       dockerfile: Dockerfile
       args:
         SERVICE: backend
         ENV: ${ENV}
-    ports:
-      - "${BACKEND_PORT}:${DOCKER_FILE_PORT}"
+    deploy:
+      replicas: 1
     environment:
       - ENV=${ENV}
       - PROTOCOL=${PROTOCOL}
@@ -42,19 +39,19 @@ services:
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=${DOCKER_FILE_PORT}"
+      - "traefik.http.services.backend.loadbalancer.sticky=false"
     networks:
       - intersides-workspace-network
 
   frontend:
-    container_name: frontend
     build:
       context: .
       dockerfile: Dockerfile
       args:
         SERVICE: frontend
         ENV: ${ENV}
-    ports:
-      - "${FRONTEND_PORT}:${DOCKER_FILE_PORT}"
+    deploy:
+      replicas: 1
     environment:
       - ENV=${ENV}
     labels:
@@ -64,6 +61,7 @@ services:
       - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.frontend.loadbalancer.server.port=${DOCKER_FILE_PORT}"
+      - "traefik.http.services.frontend.loadbalancer.sticky=false"
     networks:
       - intersides-workspace-network
 

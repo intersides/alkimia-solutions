@@ -3,6 +3,10 @@ import javascriptLogo from './javascript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.js'
 import { sayHello } from "@workspace/common";
+import CryptoService from "@workspace/common/services/CryptoService.js";
+
+const cryptoService = CryptoService.getInstance();
+const appId = cryptoService.generateRandomBytes();
 
 document.querySelector('#app').innerHTML = `
   <div>
@@ -19,10 +23,13 @@ document.querySelector('#app').innerHTML = `
     <p class="read-the-docs">
       Click on the Vite logo to learn more
     </p>
+    <foot>
+    <span>appID: ${appId}</span>
+</foot>
   </div>
 `
 
 setupCounter(document.querySelector('#counter'))
 
-document.getElementById("message").textContent = sayHello("Vite My App");
-console.log("Vite frontend is working!");
+document.getElementById("message").textContent = sayHello(`Vite My App`);
+console.log(`Vite frontend, instance: ${appId} is working!`);

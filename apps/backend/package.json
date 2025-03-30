@@ -4,8 +4,10 @@
   "main": "server.js",
   "type": "module",
   "dependencies": {
+    "@alkimia/lib": "^1.0.9",
     "@workspace/common": "*",
-    "@workspace/node": "*"
+    "@workspace/node": "*",
+    "jose": "^6.0.10"
   },
   "scripts": {
     "development": "ENV=development nodemon --watch . --watch ../../libs -e js,json main.js",

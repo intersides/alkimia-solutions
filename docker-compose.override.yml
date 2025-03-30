@@ -7,13 +7,13 @@ services:
     command:
       - "--configfile=/etc/traefik/traefik.yml"
       - "--log.level=DEBUG"
-    deploy:
-      replicas: 1
 
   backend:
     build:
       args:
         ENV: development
+    deploy:
+      replicas: 2
     environment:
       - ENV=development
     volumes:
@@ -28,6 +28,8 @@ services:
     build:
       args:
         ENV: development
+    deploy:
+      replicas: 1
     environment:
       - ENV=development
     volumes:

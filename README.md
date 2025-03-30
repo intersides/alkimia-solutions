@@ -42,7 +42,6 @@ The project uses Docker and Docker Compose for both development and production e
 
 ```bash
 brew install mkcert
-brew install nss  # if you use Firefox
 ```
 
 2. Initialize mkcert:
@@ -56,7 +55,7 @@ mkcert -install
 ```bash
 mkdir -p traefik/local-certs
 cd traefik/local-certs
-mkcert "*.alkimia.localhost" alkimia.localhost localhost 127.0.0.1 ::1
+mkcert "*.mydomain.localhost" mydomain.localhost localhost 127.0.0.1 ::1
 ```
 
 4. Create a fullchain.pem file by combining the certificate with the CA certificate:
@@ -65,9 +64,9 @@ mkcert "*.alkimia.localhost" alkimia.localhost localhost 127.0.0.1 ::1
 # Find the location of the CA certificate
 mkcert -CAROOT
 # Copy the certificate and create fullchain.pem
-cat "*.alkimia.localhost+4.pem" "$(mkcert -CAROOT)/rootCA.pem" > fullchain.pem
+cat "*.mydomain.localhost+4.pem" "$(mkcert -CAROOT)/rootCA.pem" > fullchain.pem
 # Copy the key file
-cp "*.alkimia.localhost+4-key.pem" alkimia.localhost-key.pem
+cp "*.mydomain.localhost+4-key.pem" mydomain.localhost-key.pem
 ```
 
 ### Local Hosts Configuration
@@ -75,8 +74,8 @@ cp "*.alkimia.localhost+4-key.pem" alkimia.localhost-key.pem
 Add the following entries to your `/etc/hosts` file:
 
 ```
-127.0.0.1 app.alkimia.localhost
-127.0.0.1 server.alkimia.localhost
+127.0.0.1 app.mydomain.localhost
+127.0.0.1 server.mydomain.localhost
 ```
 
 ### Starting the Development Environment
@@ -93,8 +92,8 @@ docker-compose down
 ```
 
 In development mode, the services are available at:
-- Frontend: https://app.alkimia.localhost
-- Backend: https://server.alkimia.localhost
+- Frontend: https://app.mydomain.localhost
+- Backend: https://server.mydomain.localhost
 - Traefik Dashboard: http://localhost:8080
 
 ## Production Deployment
