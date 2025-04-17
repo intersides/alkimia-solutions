@@ -36,32 +36,32 @@ export default function DockerComposeService(_args = null) {
 
 
     // Wait for container to be ready
-    // function waitForContainerReady(containerName) {
-    //     console.log(`Waiting for container ${containerName} to be ready...`);
-    //
-    //     // Simple approach: wait a few seconds
-    //     return new Promise(resolve => {
-    //         setTimeout(() => {
-    //             checkContainerRunning(containerName)
-    //             .then(isRunning => {
-    //                 if (isRunning) {
-    //                     console.log(`Container ${containerName} is ready!`);
-    //                     resolve();
-    //                 } else {
-    //                     console.error(`Container ${containerName} is not running`);
-    //                     throw new Error(`Container ${containerName} failed to start`);
-    //                 }
-    //             });
-    //         }, 3000); // Wait 3 seconds
-    //     });
-    // }
+    function waitForContainerReady(containerName) {
+        console.log(`Waiting for container ${containerName} to be ready...`);
+
+        // Simple approach: wait a few seconds
+        return new Promise(resolve => {
+            setTimeout(() => {
+                checkContainerRunning(containerName)
+                .then(isRunning => {
+                    if (isRunning) {
+                        console.log(`Container ${containerName} is ready!`);
+                        resolve();
+                    } else {
+                        console.error(`Container ${containerName} is not running`);
+                        throw new Error(`Container ${containerName} start timeout error`);
+                    }
+                });
+            }, 3000); // Wait 3 seconds
+        });
+    }
 
     // Check if container is running
-    // function checkContainerRunning(containerName) {
-    //     return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`)
-    //     .then(output => output.includes('true'))
-    //     .catch(() => false);
-    // }
+    function checkContainerRunning(containerName) {
+        return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`)
+        .then(output => output.includes('true'))
+        .catch(() => false);
+    }
 
 
     // Stop and remove a container
@@ -136,9 +136,10 @@ export default function DockerComposeService(_args = null) {
     }
 
 
+    instance.waitForContainerReady = waitForContainerReady;
     instance.startContainer = startContainer;
     instance.stopContainer = stopContainer;
-    // instance.checkContainerRunning = checkContainerRunning;
+    instance.checkContainerRunning = checkContainerRunning;
     instance.on =  (event, listener) => emitter.on(event, listener);
     // instance.once =  (event, listener) => emitter.once(event, listener);
     // instance.off =  (event, listener) => emitter.off(event, listener);

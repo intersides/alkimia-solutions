@@ -3,16 +3,19 @@ import http from "node:http";
 import fs from "node:fs";
 import path from 'path';
 import { fileURLToPath } from 'url';
+import DockerComposeService from "./DockerComposeService.js";
 
 // Get the current file's directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const keyPath = path.join(__dirname, "../", "./traefik/local-certs/key.pem")
-const certPath = path.join(__dirname, "../", "./traefik/local-certs/fullchain.pem")
+const keyPath = path.join(__dirname, "./traefik/local-certs/key.pem")
+const certPath = path.join(__dirname, "./traefik/local-certs/fullchain.pem")
 
 const key = fs.readFileSync(keyPath, {encoding:"utf-8"});
 const cert = fs.readFileSync(certPath, {encoding:"utf-8"});
+
+let dockerService = DockerComposeService.getInstance({});
 
 // HTTPS proxy (port 443) with SSL termination
 const sslOptions = {
@@ -25,12 +28,21 @@ const routingRules = [
     {
         // Route based on hostname
         match: (req) => req.headers.host === 'app.alkimia.localhost',
-        target: { host: 'localhost', port: 7070 }
+        target: {
+            service: "alkimia-frontend",
+            name: "frontend",
+            host: 'localhost',
+            port: 7070 }
     },
     {
         // Route based on hostname
         match: (req) => req.headers.host === 'server.alkimia.localhost',
-        target: { host: 'localhost', port: 8080 }
+        target: {
+            service: "alkimia-backend",
+            name: "backend",
+            host: 'localhost',
+            port: 8080
+        }
     },
     // {
     //     // Route based on path
@@ -48,21 +60,8 @@ const routingRules = [
     //     target: { host: 'localhost', port: 7070 }
     // }
 ];
-const httpsServer = https.createServer(sslOptions, function(req, res){
-    // Log the incoming request
-    console.log(`Received request: ${req.method} ${req.url}`);
-    console.log(`Host header: ${req.headers.host}`);
 
-    // Determine target server based on routing rules
-    const route = routingRules.find(rule => rule.match(req));
-    let target = {
-        host:"localhost",
-        port:8080
-    };
-    if(route?.target){
-        target = route.target;
-    }
-
+function proxyRequest(target, req, res){
     console.log(`Routing to: ${target.host}:${target.port}`);
 
     const proxyReq = http.request({
@@ -84,15 +83,60 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     req.pipe(proxyReq);
 
     // Handle errors
-    proxyReq.on('error', (err) => {
-        console.error('Proxy request error:', err);
-        if (!res.headersSent) {
+    proxyReq.on("error", (err) => {
+        console.error("Proxy request error:", err);
+        if(!res.headersSent){
             res.writeHead(502);
-            res.end('Bad Gateway');
-        } else {
+            res.end("Bad Gateway");
+        }
+        else{
             res.end();
         }
     });
+}
+
+const httpsServer = https.createServer(sslOptions, function(req, res){
+    // Log the incoming request
+    console.log(`Received request: ${req.method} ${req.url}`);
+    console.log(`Host header: ${req.headers.host}`);
+
+    // Determine target server based on routing rules
+    const route = routingRules.find(rule => rule.match(req));
+    const target = route?.target ||  {
+        service: "alkimia-backend",
+        name: "backend",
+        host: 'localhost',
+        port: 8080
+    };
+
+    console.debug("target:", target);
+
+    dockerService.checkContainerRunning(target.service).then((isRunning)=>{
+        console.debug(target.service, isRunning);
+        if(!isRunning){
+            dockerService.startContainer(target.service, target.name, target.port);
+
+            dockerService.waitForContainerReady(target.service).then(()=>{
+                console.debug(`container ${target.service} is now running`);
+
+                proxyRequest(target, req, res);
+
+            }).catch(err=>{
+                console.error(err);
+            });
+
+        }
+        else{
+            proxyRequest(target, req, res);
+        }
+
+
+
+
+    }).catch(err=>{
+        console.error(err);
+    });
+
 
 
 });

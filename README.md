@@ -8,8 +8,7 @@ A monorepo workspace for Intersides applications, containing both frontend and b
 intersides-workspace/
 ├── apps/
 │   ├── backend/       # Node.js backend application
-│   ├── frontend/      # Frontend application
-│   └── proxy.js       # Custom Node.js HTTPS proxy
+│   └── frontend/      # Frontend application
 ├── libs/
 │   ├── common/        # Shared code between frontend and backend
 │   ├── browser/       # Browser-specific libraries
@@ -20,7 +19,8 @@ intersides-workspace/
 │   ├── local-certs/   # Local development certificates (still used by Node.js proxy)
 │   ├── traefik.dev.yml  # Traefik configuration for development
 │   └── traefik.prod.yml # Traefik configuration for production
-├── DockerComposeService.js      # Docker container management service
+├── DockerComposeService.js      # Docker container management service for lazy loading
+├── proxy.js           # Custom Node.js HTTPS proxy with lazy container startup
 ├── docker-compose.yml           # Base Docker Compose configuration
 ├── docker-compose.override.yml  # Development overrides
 └── Dockerfile         # Multi-stage Dockerfile for all services
@@ -97,15 +97,14 @@ docker-compose logs -f
 docker-compose down
 ```
 
-#### Using the Custom Node.js Service
+#### Using the Custom Node.js Service with Lazy Loading
 
 ```bash
-# Start the backend and frontend containers
-node dockerComposePlayground.js
-
-# Start the HTTPS proxy (in a separate terminal)
-node apps/proxy.js
+# Start the HTTPS proxy with lazy container loading
+node proxy.js
 ```
+
+The proxy will automatically start Docker containers on-demand when requests are received, eliminating the need to manually start containers beforehand.
 
 In development mode, the services are available at:
 - Frontend: https://app.alkimia.localhost
@@ -129,11 +128,8 @@ In production mode:
 For production environments, you can also use the custom Node.js proxy:
 
 ```bash
-# Start the containers
-docker-compose -f docker-compose.yml up -d backend frontend
-
-# Start the HTTPS proxy
-node apps/proxy.js
+# Start the HTTPS proxy (containers will start automatically when needed)
+node proxy.js
 ```
 
 ## Environment Variables
@@ -167,12 +163,13 @@ TRAEFIK_LOG_LEVEL=DEBUG|INFO|WARN|ERROR|TRACE
 
 ## Custom Node.js Proxy
 
-The project includes a custom Node.js proxy (`apps/proxy.js`) that:
+The project includes a custom Node.js proxy (`proxy.js`) that:
 
 1. Handles HTTPS connections on port 443
 2. Routes requests based on hostname to the appropriate service
 3. Uses the SSL certificates from the `traefik/local-certs` directory
 4. Provides a more lightweight alternative to Traefik for simple routing needs
+5. Implements lazy loading of Docker containers - starting services only when they're requested
 
 The proxy uses routing rules to determine where to send requests:
 
@@ -181,15 +178,32 @@ const routingRules = [
     {
         // Route based on hostname
         match: (req) => req.headers.host === 'app.alkimia.localhost',
-        target: { host: 'localhost', port: 7070 }
+        target: {
+            service: "alkimia-frontend",
+            name: "frontend",
+            host: 'localhost',
+            port: 7070 
+        }
     },
     {
         // Route based on hostname
         match: (req) => req.headers.host === 'server.alkimia.localhost',
-        target: { host: 'localhost', port: 8080 }
+        target: {
+            service: "alkimia-backend",
+            name: "backend",
+            host: 'localhost',
+            port: 8080
+        }
     }
 ];
 ```
+
+When a request is received, the proxy:
+1. Determines the target service based on the hostname
+2. Checks if the required Docker container is running
+3. If not running, builds and starts the container automatically
+4. Waits for the container to be ready before forwarding the request
+5. Routes the request to the appropriate service
 
 ## Troubleshooting
 
@@ -206,7 +220,7 @@ If you encounter certificate issues in development:
 
 If you encounter issues with the Node.js proxy:
 
-1. Check that the proxy is running with `node apps/proxy.js`
+1. Check that the proxy is running with `node proxy.js`
 2. Verify that the SSL certificates are correctly referenced in the proxy code
 3. Ensure the backend and frontend services are running and accessible on their respective ports
 4. Check the console output for any error messages

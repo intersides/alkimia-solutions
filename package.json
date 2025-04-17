@@ -9,6 +9,8 @@
   ],
   "main": "index.js",
   "scripts": {
+    "development": "ENV=development nodemon --watch . proxy.js",
+    "production": "ENV=production node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
