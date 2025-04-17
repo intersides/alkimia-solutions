@@ -13,7 +13,7 @@ services:
       args:
         ENV: development
     deploy:
-      replicas: 2
+      replicas: 1
     environment:
       - ENV=development
     volumes:

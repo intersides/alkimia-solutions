@@ -32,16 +32,10 @@ services:
       - DOMAIN=${DOMAIN}
       - SUBDOMAIN=${BACKEND_SUBDOMAIN}
       - PORT=${BACKEND_PORT}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`${BACKEND_SUBDOMAIN}.${DOMAIN}`)"
-      - "traefik.http.routers.backend.tls=true"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.backend.loadbalancer.server.port=${DOCKER_FILE_PORT}"
-      - "traefik.http.services.backend.loadbalancer.sticky=false"
     networks:
       - intersides-workspace-network
+    ports:
+      - 8080:3000
 
   frontend:
     build:
@@ -64,6 +58,8 @@ services:
       - "traefik.http.services.frontend.loadbalancer.sticky=false"
     networks:
       - intersides-workspace-network
+    ports:
+      - 7070:3000
 
 networks:
   intersides-workspace-network:

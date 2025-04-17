@@ -1,6 +1,6 @@
 # Intersides Workspace
 
-A monorepo workspace for Intersides applications, containing both frontend and backend services with a Traefik reverse proxy for local development and production deployment.
+A monorepo workspace for Intersides applications, containing both frontend and backend services with a custom Node.js-based proxy for local development and production deployment.
 
 ## Project Structure
 
@@ -8,17 +8,19 @@ A monorepo workspace for Intersides applications, containing both frontend and b
 intersides-workspace/
 ├── apps/
 │   ├── backend/       # Node.js backend application
-│   └── frontend/      # Frontend application
+│   ├── frontend/      # Frontend application
+│   └── proxy.js       # Custom Node.js HTTPS proxy
 ├── libs/
 │   ├── common/        # Shared code between frontend and backend
 │   ├── browser/       # Browser-specific libraries
 │   └── node/          # Node.js-specific libraries
-├── traefik/
+├── traefik/           # Legacy Traefik configuration (being phased out)
 │   ├── acme/          # Let's Encrypt certificates for production
 │   ├── config/        # Additional Traefik configuration
-│   ├── local-certs/   # Local development certificates
+│   ├── local-certs/   # Local development certificates (still used by Node.js proxy)
 │   ├── traefik.dev.yml  # Traefik configuration for development
 │   └── traefik.prod.yml # Traefik configuration for production
+├── DockerComposeService.js      # Docker container management service
 ├── docker-compose.yml           # Base Docker Compose configuration
 ├── docker-compose.override.yml  # Development overrides
 └── Dockerfile         # Multi-stage Dockerfile for all services
@@ -26,7 +28,7 @@ intersides-workspace/
 
 ## Environment Setup
 
-The project uses Docker and Docker Compose for both development and production environments. Configuration is managed through environment variables in the `.env` file.
+The project uses Docker and Docker Compose for both development and production environments, with a custom Node.js proxy for routing. Configuration is managed through environment variables in the `.env` file.
 
 ### Prerequisites
 
@@ -66,7 +68,7 @@ mkcert -CAROOT
 # Copy the certificate and create fullchain.pem
 cat "*.mydomain.localhost+4.pem" "$(mkcert -CAROOT)/rootCA.pem" > fullchain.pem
 # Copy the key file
-cp "*.mydomain.localhost+4-key.pem" mydomain.localhost-key.pem
+cp "*.mydomain.localhost+4-key.pem" key.pem
 ```
 
 ### Local Hosts Configuration
@@ -74,11 +76,15 @@ cp "*.mydomain.localhost+4-key.pem" mydomain.localhost-key.pem
 Add the following entries to your `/etc/hosts` file:
 
 ```
-127.0.0.1 app.mydomain.localhost
-127.0.0.1 server.mydomain.localhost
+127.0.0.1 app.alkimia.localhost
+127.0.0.1 server.alkimia.localhost
 ```
 
 ### Starting the Development Environment
+
+You can start the environment using Docker Compose or the custom Node.js service:
+
+#### Using Docker Compose
 
 ```bash
 # Start all services
@@ -91,10 +97,19 @@ docker-compose logs -f
 docker-compose down
 ```
 
+#### Using the Custom Node.js Service
+
+```bash
+# Start the backend and frontend containers
+node dockerComposePlayground.js
+
+# Start the HTTPS proxy (in a separate terminal)
+node apps/proxy.js
+```
+
 In development mode, the services are available at:
-- Frontend: https://app.mydomain.localhost
-- Backend: https://server.mydomain.localhost
-- Traefik Dashboard: http://localhost:8080
+- Frontend: https://app.alkimia.localhost
+- Backend: https://server.alkimia.localhost
 
 ## Production Deployment
 
@@ -105,9 +120,21 @@ docker-compose -f docker-compose.yml up -d
 ```
 
 In production mode:
-- Let's Encrypt is used for SSL certificates
+- Let's Encrypt is used for SSL certificates (if using Traefik)
 - Volume mounts for live development are disabled
 - Environment variables from .env are used for configuration
+
+### Custom Node.js Proxy for Production
+
+For production environments, you can also use the custom Node.js proxy:
+
+```bash
+# Start the containers
+docker-compose -f docker-compose.yml up -d backend frontend
+
+# Start the HTTPS proxy
+node apps/proxy.js
+```
 
 ## Environment Variables
 
@@ -127,7 +154,7 @@ TRAEFIK_LOG_LEVEL=DEBUG|INFO|WARN|ERROR|TRACE
 
 ## Development Workflow
 
-1. Start the development environment with `docker-compose up -d`
+1. Start the development environment with `docker-compose up -d` or using the Node.js services
 2. Make changes to the code in the `apps` or `libs` directories
 3. The changes will be automatically reflected due to volume mounts
 4. Access the applications at their respective URLs
@@ -137,6 +164,32 @@ TRAEFIK_LOG_LEVEL=DEBUG|INFO|WARN|ERROR|TRACE
 - Development certificates are generated using mkcert and are included in the repository for convenience
 - These certificates are for development purposes only and should never be used in production
 - Production uses Let's Encrypt for automatic certificate generation and renewal
+
+## Custom Node.js Proxy
+
+The project includes a custom Node.js proxy (`apps/proxy.js`) that:
+
+1. Handles HTTPS connections on port 443
+2. Routes requests based on hostname to the appropriate service
+3. Uses the SSL certificates from the `traefik/local-certs` directory
+4. Provides a more lightweight alternative to Traefik for simple routing needs
+
+The proxy uses routing rules to determine where to send requests:
+
+```javascript
+const routingRules = [
+    {
+        // Route based on hostname
+        match: (req) => req.headers.host === 'app.alkimia.localhost',
+        target: { host: 'localhost', port: 7070 }
+    },
+    {
+        // Route based on hostname
+        match: (req) => req.headers.host === 'server.alkimia.localhost',
+        target: { host: 'localhost', port: 8080 }
+    }
+];
+```
 
 ## Troubleshooting
 
@@ -149,10 +202,11 @@ If you encounter certificate issues in development:
 3. Check that the fullchain.pem includes both the certificate and CA certificate
 4. Restart the services with `docker-compose down && docker-compose up -d`
 
-### Traefik Configuration
+### Proxy Issues
 
-To debug Traefik configuration:
+If you encounter issues with the Node.js proxy:
 
-1. Set `TRAEFIK_LOG_LEVEL=DEBUG` in your .env file
-2. Check the Traefik logs with `docker-compose logs traefik`
-3. Access the Traefik dashboard at http://localhost:8080
+1. Check that the proxy is running with `node apps/proxy.js`
+2. Verify that the SSL certificates are correctly referenced in the proxy code
+3. Ensure the backend and frontend services are running and accessible on their respective ports
+4. Check the console output for any error messages

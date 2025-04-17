@@ -55,6 +55,4 @@ COPY --from=builder /app/libs/node ./libs/node
 COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
-#CMD ["npm", "run", "${ENV}"]
-CMD sh -c 'npm run "${ENV}"'
-
+CMD ["sh", "-c", "npm run \"$ENV\""]

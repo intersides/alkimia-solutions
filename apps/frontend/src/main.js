@@ -3,10 +3,10 @@ import javascriptLogo from './javascript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.js'
 import { sayHello } from "@workspace/common";
-import CryptoService from "@workspace/common/services/CryptoService.js";
+//import CryptoService from "@workspace/common/services/CryptoService.js";
 
-const cryptoService = CryptoService.getInstance();
-const appId = cryptoService.generateRandomBytes();
+//const cryptoService = CryptoService.getInstance();
+const appId = "cryptoService.generateRandomBytes()";
 
 document.querySelector('#app').innerHTML = `
   <div>

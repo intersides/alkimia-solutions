@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
 
     const response = {
-        message: sayHello(" My Backend Server"),
+        message: sayHello(" My Proxied Backend Server"),
         system: getSystemInfo(),
         appInstanceId
     };
@@ -22,6 +22,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
+    console.debug("****");
     printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN+"."+process.env.DOMAIN, null, process.env.ENV);
     console.log("system info: ", getSystemInfo());
 });
