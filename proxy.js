@@ -10,8 +10,8 @@ import { WebSocketServer } from 'ws';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const keyPath = path.join(__dirname, "./traefik/local-certs/key.pem");
-const certPath = path.join(__dirname, "./traefik/local-certs/fullchain.pem");
+const keyPath = path.join(__dirname, "./certs/key.pem");
+const certPath = path.join(__dirname, "./certs/fullchain.pem");
 
 const key = fs.readFileSync(keyPath, {encoding: "utf-8"});
 const cert = fs.readFileSync(certPath, {encoding: "utf-8"});

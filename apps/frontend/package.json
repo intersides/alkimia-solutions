@@ -4,15 +4,22 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
+    "@alkimia/lib": "^1.0.9",
     "@workspace/browser": "*",
-    "@workspace/common": "*"
+    "@workspace/common": "*",
+    "sass": "^1.86.3"
   },
   "scripts": {
+    "create-app-module": "npx @alkimia/framework --srcDir=src/modules/",
+    "create-app-widget": "npx @alkimia/framework --srcDir=src/widgets/",
+    "create-app-service": "npx @alkimia/framework --srcDir=src/services/",
     "build": "vite build",
     "development": "vite",
     "production": "vite preview --port 3000"
   },
   "devDependencies": {
+    "@alkimia/framework": "^0.1.0",
+    "esbuild": "0.24.2",
     "vite": "^6.1.0"
   }
 }

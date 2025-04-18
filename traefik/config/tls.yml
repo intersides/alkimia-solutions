@@ -1,9 +1,0 @@
-tls:
-  certificates:
-    - certFile: "/certs/fullchain.pem"
-      keyFile: "/certs/key.pem"
-  stores:
-    default:
-      defaultCertificate:
-        certFile: "/certs/fullchain.pem"
-        keyFile: "/certs/key.pem"

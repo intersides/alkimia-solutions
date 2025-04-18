@@ -3,6 +3,9 @@ import javascriptLogo from './javascript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.js'
 import { sayHello } from "@workspace/common";
+
+import App from "./modules/App/App.js";
+
 //import CryptoService from "@workspace/common/services/CryptoService.js";
 
 //const cryptoService = CryptoService.getInstance();
@@ -21,7 +24,7 @@ document.querySelector('#app').innerHTML = `
       <button id="counter" type="button"></button>
     </div>
     <p class="read-the-docs">
-      Click ! on the Vite logo to learn more
+      Click  on the Vite logo to learn more
     </p>
     <foot>
     <span>appID: ${appId}</span>
@@ -34,8 +37,10 @@ setupCounter(document.querySelector('#counter'))
 document.getElementById("message").textContent = sayHello(`Vite My App`);
 console.log(`Vite frontend, instance: ${appId} is working!`);
 
+const app = App.getInstance({});
+document.body.appendChild(app.element);
 
-console.log();
+
 const webSocket = new WebSocket(`wss://${location.hostname}`);
 // Connection opened
 webSocket.addEventListener("open", (event) => {

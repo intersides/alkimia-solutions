@@ -1,0 +1,17 @@
+:host{
+  --g_font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --g_line-height: 1.5;
+}
+*{
+  box-sizing: border-box;
+}
+body{
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  font-family: var(--g_font-family), serif;
+  line-height: var(--g_line-height);
+
+}
