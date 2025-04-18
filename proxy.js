@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
 import DockerComposeService from "./DockerComposeService.js";
+import { WebSocketServer } from 'ws';
 
 // Get the current file's directory name
 const __filename = fileURLToPath(import.meta.url);
@@ -67,6 +68,7 @@ const routingRules = [
     //     target: { host: 'localhost', port: 7070 }
     // }
 ];
+
 
 function proxyRequest(target, req, res){
     console.log(`Routing to: ${target.host}:${target.port}`);
@@ -143,6 +145,21 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     });
 
 });
+
+
+const wss = new WebSocketServer({ server: httpsServer });
+wss.on('connection', (ws, req) => {
+    console.log('WebSocket connection established');
+
+    ws.on('error', console.error);
+
+    ws.on('message', function message(data) {
+        console.log('received: %s', data);
+        ws.send('hello from server');
+    });
+});
+
+
 
 httpsServer.listen(443, () => {
     console.log("HTTPS proxy server listening on port 443");

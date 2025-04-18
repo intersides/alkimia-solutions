@@ -117,6 +117,8 @@ export default function DockerComposeService(_args = null){
           ${volumeFlags} \
           ${name}`;
 
+        console.debug("about to execute command");
+
         execSync(runCommand, {
             stdio: "inherit"
         });

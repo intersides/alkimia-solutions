@@ -9,4 +9,10 @@ export default defineConfig({
             usePolling: true, // Enables hot-reloading in Docker
         },
     },
+    // hmr: {
+    //     clientPort: 443,
+    //     host: 'app.alkimia.localhost',
+    //     protocol: 'wss'
+    // }
+
 });

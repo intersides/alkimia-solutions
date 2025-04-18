@@ -21,7 +21,7 @@ document.querySelector('#app').innerHTML = `
       <button id="counter" type="button"></button>
     </div>
     <p class="read-the-docs">
-      Click on the Vite logo to learn more
+      Click ! on the Vite logo to learn more
     </p>
     <foot>
     <span>appID: ${appId}</span>
@@ -33,3 +33,16 @@ setupCounter(document.querySelector('#counter'))
 
 document.getElementById("message").textContent = sayHello(`Vite My App`);
 console.log(`Vite frontend, instance: ${appId} is working!`);
+
+
+console.log();
+const webSocket = new WebSocket(`wss://${location.hostname}`);
+// Connection opened
+webSocket.addEventListener("open", (event) => {
+    webSocket.send("Hello Server!");
+});
+
+// Listen for messages
+webSocket.addEventListener("message", (event) => {
+    console.log("Message from server ", event.data);
+});
