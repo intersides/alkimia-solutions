@@ -10,7 +10,18 @@ const cryptoService = CryptoService.getInstance();
 const appInstanceId = cryptoService.generateRandomBytes();
 
 const server = http.createServer((req, res) => {
+
+    console.log("requesting:", req.url);
+
     res.writeHead(200, { "Content-Type": "application/json" });
+
+    if(req.url === "/api/hello"){
+        return res.end(JSON.stringify({msg:"world"}));
+    }
+    else if(req.url === "/api/setCounter"){
+
+        return res.end(JSON.stringify({value:0}));
+    }
 
     const response = {
         message: sayHello(" My Proxied Backend Server"),
@@ -19,6 +30,7 @@ const server = http.createServer((req, res) => {
     };
 
     res.end(JSON.stringify(response));
+
 });
 
 server.listen(PORT, () => {

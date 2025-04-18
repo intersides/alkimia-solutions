@@ -1,30 +1,30 @@
-import { utilities as Utilities } from "@alkimia/lib";
+import {utilities as Utilities} from "@alkimia/lib";
 import {EventEmitter} from "node:events";
 import {exec, execSync} from "node:child_process";
 import fs from "node:fs";
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from "path";
+import {fileURLToPath} from "url";
 
 // Get the current file's directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export default function DockerComposeService(_args = null) {
+export default function DockerComposeService(_args = null){
 
     const instance = Object.create(DockerComposeService.prototype);
 
     const {} = Utilities.transfer(_args, {});
 
     // Load environment variables from .env file
-    const envFile = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    const envFile = fs.readFileSync(path.join(__dirname, ".env"), "utf8");
     const envVars = {};
 
     const emitter = new EventEmitter();
 
-    envFile.split('\n').forEach(line => {
-        if (line && !line.startsWith('#')) {
-            const [key, value] = line.split('=');
-            if (key && value) {
+    envFile.split("\n").forEach(line => {
+        if(line && !line.startsWith("#")){
+            const [key, value] = line.split("=");
+            if(key && value){
                 envVars[key.trim()] = value.trim();
             }
         }
@@ -34,20 +34,19 @@ export default function DockerComposeService(_args = null) {
         return instance;
     }
 
-
-    // Wait for container to be ready
-    function waitForContainerReady(containerName) {
+    // Wait for the container to be ready
+    function waitForContainerReady(containerName){
         console.log(`Waiting for container ${containerName} to be ready...`);
 
         // Simple approach: wait a few seconds
         return new Promise(resolve => {
             setTimeout(() => {
-                checkContainerRunning(containerName)
-                .then(isRunning => {
-                    if (isRunning) {
+                checkContainerRunning(containerName).then(isRunning => {
+                    if(isRunning){
                         console.log(`Container ${containerName} is ready!`);
                         resolve();
-                    } else {
+                    }
+                    else{
                         console.error(`Container ${containerName} is not running`);
                         throw new Error(`Container ${containerName} start timeout error`);
                     }
@@ -56,25 +55,22 @@ export default function DockerComposeService(_args = null) {
         });
     }
 
-    // Check if container is running
-    function checkContainerRunning(containerName) {
-        return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`)
-        .then(output => output.includes('true'))
-        .catch(() => false);
+    // Check if the container is running
+    function checkContainerRunning(containerName){
+        return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`).then(output => output.includes("true")).catch(() => false);
     }
-
 
     // Stop and remove a container
-    function stopContainer(containerName) {
+    function stopContainer(containerName){
         console.log(`Stopping container ${containerName}...`);
-        execSync(`docker rm -f ${containerName} || true`, { stdio: 'inherit' });
+        execSync(`docker rm -f ${containerName} || true`, {stdio: "inherit"});
     }
 
-    function runCommand(command) {
+    function runCommand(command){
         return new Promise((resolve, reject) => {
 
             exec(command, (error, stdout, stderr) => {
-                if (error) {
+                if(error){
                     console.error(`Error: ${stderr}`);
                     reject(error);
                     return;
@@ -84,7 +80,7 @@ export default function DockerComposeService(_args = null) {
         });
     }
 
-    function startContainer(name, service, port) {
+    function startContainer(name, service, port){
         console.log(`Starting container ...`, __dirname);
         console.log(`env ...`, envVars);
 
@@ -96,19 +92,19 @@ export default function DockerComposeService(_args = null) {
 
         execSync(buildCommand, {
             cwd: __dirname, // ensures Docker context is correct
-            stdio: 'inherit', // streams output live to the console
+            stdio: "inherit" // streams output live to the console
         });
 
-        execSync(`docker rm -f ${name} || true`, { stdio: 'inherit' });
+        execSync(`docker rm -f ${name} || true`, {stdio: "inherit"});
 
-        let volumeFlags = '';
-        if (ENV === 'development') {
+        let volumeFlags = "";
+        if(ENV === "development"){
             const root = process.cwd();
             volumeFlags = [
                 `-v ${__dirname}/apps/${service}:/app`,
                 `-v ${__dirname}/libs:/app/libs`,
-                `-v /app/node_modules`, // anonymous volume, Docker handles it
-            ].join(' ');
+                `-v /app/node_modules` // anonymous volume, Docker handles it
+            ].join(" ");
         }
 
         const runCommand = `docker run -d \
@@ -122,25 +118,24 @@ export default function DockerComposeService(_args = null) {
           ${name}`;
 
         execSync(runCommand, {
-            stdio: 'inherit'
+            stdio: "inherit"
         });
 
-        emitter.emit('container-started', {
-            name:name,
-            env:ENV,
-            domain:envVars.DOMAIN,
-            service:service,
-            port:port
+        emitter.emit("container-started", {
+            name: name,
+            env: ENV,
+            domain: envVars.DOMAIN,
+            service: service,
+            port: port
         });
 
     }
-
 
     instance.waitForContainerReady = waitForContainerReady;
     instance.startContainer = startContainer;
     instance.stopContainer = stopContainer;
     instance.checkContainerRunning = checkContainerRunning;
-    instance.on =  (event, listener) => emitter.on(event, listener);
+    instance.on = (event, listener) => emitter.on(event, listener);
     // instance.once =  (event, listener) => emitter.once(event, listener);
     // instance.off =  (event, listener) => emitter.off(event, listener);
 
@@ -148,15 +143,14 @@ export default function DockerComposeService(_args = null) {
 
 }
 
-
 let _instance = null;
 
 /**
  *
  * @return {DockerComposeService}
  */
-DockerComposeService.getSingleton = function(_args = null) {
-    if(!_instance) {
+DockerComposeService.getSingleton = function(_args = null){
+    if(!_instance){
         _instance = DockerComposeService(_args);
     }
     return _instance;
@@ -166,6 +160,6 @@ DockerComposeService.getSingleton = function(_args = null) {
  *
  * @return {DockerComposeService}
  */
-DockerComposeService.getInstance = function(_args = null) {
+DockerComposeService.getInstance = function(_args = null){
     return DockerComposeService(_args);
 };
