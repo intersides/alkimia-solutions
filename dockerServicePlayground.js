@@ -20,6 +20,7 @@ docker.on('container-started', (params) => {
 
 });
 
-// docker.startContainer('alkimia-backend', "backend", '8080');
+docker.startContainer('alkimia-backend', "backend", '8080');
 docker.startContainer('alkimia-frontend', "frontend", '7070');
 
+docker.monitorFor60Seconds("alkimia-backend");
