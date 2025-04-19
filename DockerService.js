@@ -9,9 +9,9 @@ import {fileURLToPath} from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export default function DockerComposeService(_args = null){
+export default function DockerService(_args = null){
 
-    const instance = Object.create(DockerComposeService.prototype);
+    const instance = Object.create(DockerService.prototype);
 
     const {} = Utilities.transfer(_args, {});
 
@@ -57,7 +57,24 @@ export default function DockerComposeService(_args = null){
 
     // Check if the container is running
     function checkContainerRunning(containerName){
+
         return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`).then(output => output.includes("true")).catch(() => false);
+    }
+
+    /**
+     *
+     * @param containerName
+     * @return {boolean}
+     */
+    function containerIsRunning(containerName){
+        let isRunning = "false";
+        try{
+            isRunning = execSync(`docker inspect -f '{{.State.Running}}' ${containerName}`, {encoding: 'utf8'});
+        }
+        catch(e){
+            console.error(e.message);
+        }
+        return isRunning.trim().toLowerCase() === "true";
     }
 
     // Stop and remove a container
@@ -80,9 +97,18 @@ export default function DockerComposeService(_args = null){
         });
     }
 
-    function startContainer(name, service, port){
+    function startContainer(name, service, port, forceRestart=false){
+
+        let isRunning = containerIsRunning('alkimia-backend');
+        if(isRunning && forceRestart){
+            stopContainer(name);
+        }
+        else if(isRunning){
+            console.info(`container ${name} is already running`);
+            return;
+        }
+
         console.log(`Starting container ...`, __dirname);
-        console.log(`env ...`, envVars);
 
         let ENV = "development";
 
@@ -95,17 +121,16 @@ export default function DockerComposeService(_args = null){
             stdio: "inherit" // streams output live to the console
         });
 
-        execSync(`docker rm -f ${name} || true`, {stdio: "inherit"});
-
-        let volumeFlags = "";
+        let volumeFlags = [
+            `-v /app/node_modules`,
+            `-v /app/dist`
+        ];
         if(ENV === "development"){
-            const root = process.cwd();
-            volumeFlags = [
-                `-v ${__dirname}/apps/${service}:/app`,
-                `-v ${__dirname}/libs:/app/libs`,
-                `-v /app/node_modules` // anonymous volume, Docker handles it
-            ].join(" ");
+            // const root = process.cwd();
+            volumeFlags.push(`-v ${__dirname}/apps/${service}:/app`);
+            volumeFlags.push(`-v ${__dirname}/libs:/app/libs`);
         }
+        volumeFlags = volumeFlags.join(" ");
 
         const runCommand = `docker run -d \
           --name ${name} \
@@ -117,7 +142,7 @@ export default function DockerComposeService(_args = null){
           ${volumeFlags} \
           ${name}`;
 
-        console.debug("about to execute command");
+        console.debug("about to execute command", runCommand);
 
         execSync(runCommand, {
             stdio: "inherit"
@@ -133,6 +158,7 @@ export default function DockerComposeService(_args = null){
 
     }
 
+    instance.containerIsRunning = containerIsRunning;
     instance.waitForContainerReady = waitForContainerReady;
     instance.startContainer = startContainer;
     instance.stopContainer = stopContainer;
@@ -149,19 +175,19 @@ let _instance = null;
 
 /**
  *
- * @return {DockerComposeService}
+ * @return {DockerService}
  */
-DockerComposeService.getSingleton = function(_args = null){
+DockerService.getSingleton = function(_args = null){
     if(!_instance){
-        _instance = DockerComposeService(_args);
+        _instance = DockerService(_args);
     }
     return _instance;
 };
 
 /**
  *
- * @return {DockerComposeService}
+ * @return {DockerService}
  */
-DockerComposeService.getInstance = function(_args = null){
-    return DockerComposeService(_args);
+DockerService.getInstance = function(_args = null){
+    return DockerService(_args);
 };

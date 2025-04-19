@@ -1,4 +1,5 @@
 import { utilities, ElementState } from "@alkimia/lib";
+import { sayHello } from "@workspace/common";
 
 import style from "./App.scss?inline";
 import htmlTemplate from "./App.html?raw";
@@ -21,6 +22,7 @@ export default function App(args){
     
   //children elements
   let $input = null,
+      $h2 = null,
       $counter = null,
       $list = null,
       $listItemTemplate = null;
@@ -41,11 +43,14 @@ export default function App(args){
   
   function _initView(){
     
+    $h2 = instance.element.view.querySelector("h2");
     $input = instance.element.view.querySelector("input");
     $counter = instance.element.view.querySelector("#counter_value");
     $list = instance.element.view.querySelector("ul");
     $listItemTemplate = instance.element.view.querySelector(".list_item_template");
-      
+
+    $h2.textContent = sayHello(`Vite My App`);
+
     [counter, setCounter] = new ElementState({
       element: $counter,
       attribute: ElementState.BindableAttribute.innertext.name,
@@ -92,6 +97,21 @@ export default function App(args){
     
     if($input){
       $input.addEventListener("change", (evt) => {
+
+          fetch("api/setCounter", {
+              method:"POST",
+              body: JSON.stringify({ counter })
+          })
+          .then(res=>{
+              return res.json();
+          })
+          .then((data)=>{
+              console.log(data);
+          })
+          .catch(err=>{
+              console.error(err);
+          });
+
         setCounter(evt.target.value);
         setList([...list.value, evt.target.value]);
       });

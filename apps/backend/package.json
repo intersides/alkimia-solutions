@@ -10,7 +10,7 @@
     "jose": "^6.0.10"
   },
   "scripts": {
-    "development": "ENV=development nodemon --watch . --watch ../../libs -e js,json main.js",
+    "development": "ENV=development nodemon --watch main.js --watch ../../libs  --ignore tmp.json main.js",
     "production": "ENV=production node main.js"
   },
   "devDependencies": {

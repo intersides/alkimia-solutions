@@ -3,7 +3,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
-import DockerComposeService from "./DockerComposeService.js";
+import DockerService from "./DockerService.js";
 import { WebSocketServer } from 'ws';
 
 // Get the current file's directory name
@@ -16,7 +16,8 @@ const certPath = path.join(__dirname, "./certs/fullchain.pem");
 const key = fs.readFileSync(keyPath, {encoding: "utf-8"});
 const cert = fs.readFileSync(certPath, {encoding: "utf-8"});
 
-let dockerService = DockerComposeService.getInstance({});
+
+let dockerService = DockerService.getInstance({});
 
 // HTTPS proxy (port 443) with SSL termination
 const sslOptions = {

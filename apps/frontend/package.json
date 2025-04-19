@@ -14,6 +14,7 @@
     "create-app-widget": "npx @alkimia/framework --srcDir=src/widgets/",
     "create-app-service": "npx @alkimia/framework --srcDir=src/services/",
     "build": "vite build",
+    "compile-scss": "npx sass src",
     "development": "vite",
     "production": "vite preview --port 3000"
   },

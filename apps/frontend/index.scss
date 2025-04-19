@@ -1,17 +1,17 @@
-:host{
-  --g_font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+:root{
+  --g_font-family: Helvetica, Arial, sans-serif;
   --g_line-height: 1.5;
 }
 *{
   box-sizing: border-box;
 }
+
 body{
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  font-family: var(--g_font-family), serif;
+  font-family: var(--g_font-family), sans-serif;
   line-height: var(--g_line-height);
-
+  color: #aa17b5;
 }

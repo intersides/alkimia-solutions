@@ -19,7 +19,7 @@ intersides-workspace/
 │   ├── local-certs/   # Local development certificates (still used by Node.js proxy)
 │   ├── traefik.dev.yml  # Traefik configuration for development
 │   └── traefik.prod.yml # Traefik configuration for production
-├── DockerComposeService.js      # Docker container management service for lazy loading
+├── DockerService.js      # Docker container management service for lazy loading
 ├── proxy.js           # Custom Node.js HTTPS proxy with lazy container startup
 ├── docker-compose.yml           # Base Docker Compose configuration
 ├── docker-compose.override.yml  # Development overrides
