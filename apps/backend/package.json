@@ -1,5 +1,5 @@
 {
-  "name": "backend-server",
+  "name": "@workspace/backend",
   "version": "1.0.0",
   "main": "server.js",
   "type": "module",
@@ -10,10 +10,7 @@
     "jose": "^6.0.10"
   },
   "scripts": {
-    "development": "ENV=development nodemon --watch main.js --watch ../../libs  --ignore tmp.json main.js",
-    "production": "ENV=production node main.js"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
+    "development": "pm2-runtime start ecosystem.config.cjs --env development",
+    "production": "pm2-runtime start ecosystem.config.cjs --env production"
   }
 }

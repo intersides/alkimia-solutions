@@ -13,22 +13,16 @@ export default function DockerService(_args = null){
 
     const instance = Object.create(DockerService.prototype);
 
-    const {} = Utilities.transfer(_args, {});
-
-    // Load environment variables from .env file
-    const envFile = fs.readFileSync(path.join(__dirname, ".env"), "utf8");
-    const envVars = {};
+    const {
+        envVars
+    } = Utilities.transfer(_args, {
+        envVars:null
+    });
 
     const emitter = new EventEmitter();
 
-    envFile.split("\n").forEach(line => {
-        if(line && !line.startsWith("#")){
-            const [key, value] = line.split("=");
-            if(key && value){
-                envVars[key.trim()] = value.trim();
-            }
-        }
-    });
+    // Load environment variables from .env file
+
 
     function _init(){
         return instance;
@@ -69,7 +63,7 @@ export default function DockerService(_args = null){
     function containerIsRunning(containerName){
         let isRunning = "false";
         try{
-            isRunning = execSync(`docker inspect -f '{{.State.Running}}' ${containerName}`, {encoding: 'utf8'});
+            isRunning = execSync(`docker inspect -f '{{.State.Running}}' ${containerName}`, {encoding: "utf8"});
         }
         catch(e){
             console.error(e.message);
@@ -97,28 +91,28 @@ export default function DockerService(_args = null){
         });
     }
 
-
     /**
      * Get CPU usage percentage for a running container
      * @param {string} containerName - Name of the container to monitor
      * @returns {Promise<number>} - CPU usage percentage
      */
-    async function getContainerCpuUsage(containerName) {
-        try {
+    async function getContainerCpuUsage(containerName){
+        try{
             // Get container stats in JSON format
             const statsCommand = `docker stats ${containerName} --no-stream --format "{{.CPUPerc}}"`;
             const result = await runCommand(statsCommand);
 
             // Parse the CPU percentage (format is like "5.26%")
-            const cpuPercent = parseFloat(result.replace('%', ''));
+            const cpuPercent = parseFloat(result.replace("%", ""));
             return cpuPercent;
-        } catch (error) {
+        }
+        catch(error){
             console.error(`Error getting CPU usage for ${containerName}:`, error);
             return -1; // Return -1 to indicate error
         }
     }
 
-    function monitorFor60Seconds(containerName) {
+    function monitorFor60Seconds(containerName){
         // const containerName = 'alkimia-frontend';
 
         const monitor = monitorContainerCpu(
@@ -133,7 +127,7 @@ export default function DockerService(_args = null){
         // If you need to stop monitoring early
         setTimeout(() => {
             const readings = monitor.stop();
-            console.log('Monitoring stopped. Readings:', readings);
+            console.log("Monitoring stopped. Readings:", readings);
 
             // Calculate average CPU usage
             const avgCpu = readings.reduce((sum, r) => sum + r.cpuPercent, 0) / readings.length;
@@ -142,8 +136,8 @@ export default function DockerService(_args = null){
     }
 
     // Example 1: Simple one-time CPU check
-    async function checkCpu() {
-        const containerName = 'alkimia-frontend';
+    async function checkCpu(){
+        const containerName = "alkimia-frontend";
         const cpuPercent = await getContainerCpuUsage(containerName);
         console.log(`Current CPU usage for ${containerName}: ${cpuPercent.toFixed(2)}%`);
     }
@@ -156,7 +150,7 @@ export default function DockerService(_args = null){
      * @param {function} callback - Callback function(cpuPercent, timestamp)
      * @returns {object} - Monitor control object with stop() method
      */
-    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback) {
+    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback){
         console.log(`Starting CPU monitoring for ${containerName}`);
 
         const startTime = Date.now();
@@ -169,8 +163,8 @@ export default function DockerService(_args = null){
         };
 
         // Create monitoring interval
-        const intervalId = setInterval(async () => {
-            if (!monitorData.isRunning) {
+        const intervalId = setInterval(async() => {
+            if(!monitorData.isRunning){
                 clearInterval(intervalId);
                 return;
             }
@@ -187,12 +181,12 @@ export default function DockerService(_args = null){
             monitorData.readings.push(reading);
 
             // Call the callback if provided
-            if (typeof callback === 'function') {
+            if(typeof callback === "function"){
                 callback(reading);
             }
 
             // Check if monitoring duration has elapsed
-            if (durationMs > 0 && timestamp - startTime >= durationMs) {
+            if(durationMs > 0 && timestamp - startTime >= durationMs){
                 monitorData.isRunning = false;
                 clearInterval(intervalId);
                 console.log(`CPU monitoring for ${containerName} completed`);
@@ -213,9 +207,31 @@ export default function DockerService(_args = null){
         };
     }
 
-    function startContainer(name, service, port, forceRestart=false){
+    function imageExists(imageName){
+        const command = ` docker image inspect intersides-workspace-base >/dev/null 2>&1 && echo "exists" || echo "not exists"`;
+        const exists = execSync(command, {encoding: "utf8"});
+        return exists.trim() === "exists";
+    }
 
-        let isRunning = containerIsRunning('alkimia-backend');
+    function buildBaseImage(){
+        const buildCommand = `docker build \
+          -f Dockerfile.base \
+          -t intersides-workspace-base \
+          .`;
+
+        execSync(buildCommand, {
+            cwd: __dirname, // ensures Docker context is correct
+            stdio: "inherit" // streams output live to the console
+        });
+    }
+
+    function startContainer(name, service, port, forceRestart = false){
+
+        if(!imageExists("intersides-workspace-base")){
+            buildBaseImage();
+        }
+
+        let isRunning = containerIsRunning(name);
         if(isRunning && forceRestart){
             stopContainer(name);
         }
@@ -226,11 +242,11 @@ export default function DockerService(_args = null){
 
         console.log(`Starting container ...`, __dirname);
 
-        let ENV = "development";
-
-        const buildCommand = `docker build . -t ${name} \
-          --build-arg SERVICE=${service} \
-          --build-arg ENV=${ENV}`;
+        const buildCommand = `docker build \
+          -f apps/${service}/Dockerfile \
+          -t ${name} \
+          --build-arg ENV=${envVars.ENV}\
+          .`;
 
         execSync(buildCommand, {
             cwd: __dirname, // ensures Docker context is correct
@@ -241,7 +257,7 @@ export default function DockerService(_args = null){
             `-v /app/node_modules`,
             `-v /app/dist`
         ];
-        if(ENV === "development"){
+        if(envVars.ENV === "development"){
             // const root = process.cwd();
             volumeFlags.push(`-v ${__dirname}/apps/${service}:/app`);
             volumeFlags.push(`-v ${__dirname}/libs:/app/libs`);
@@ -251,7 +267,7 @@ export default function DockerService(_args = null){
         const runCommand = `docker run -d \
           --name ${name} \
           -p ${port}:${envVars.DOCKER_FILE_PORT} \
-          -e ENV=${ENV} \
+          -e ENV=${envVars.ENV} \
           -e PROTOCOL=${envVars.PROTOCOL} \
           -e DOMAIN=${envVars.DOMAIN}\
           -e SUBDOMAIN=${service} \
@@ -266,7 +282,7 @@ export default function DockerService(_args = null){
 
         emitter.emit("container-started", {
             name: name,
-            env: ENV,
+            env: envVars.ENV,
             domain: envVars.DOMAIN,
             service: service,
             port: port
@@ -274,6 +290,8 @@ export default function DockerService(_args = null){
 
     }
 
+    instance.imageExists = imageExists;
+    instance.buildBaseImage = buildBaseImage;
     instance.monitorFor60Seconds = monitorFor60Seconds;
     instance.containerIsRunning = containerIsRunning;
     instance.waitForContainerReady = waitForContainerReady;

@@ -1,0 +1,22 @@
+FROM node:23-bullseye AS base
+WORKDIR /repo
+
+# Copy only what's needed to install deps
+COPY package*.json ./
+COPY libs/common/package.json ./libs/common/
+COPY libs/node/package.json ./libs/node/
+COPY libs/browser/package.json ./libs/browser/
+
+# Install all workspace deps
+RUN npm install
+
+
+# Install PM2 globally for better process management
+RUN npm install pm2 -g
+
+COPY libs/common ./libs/common
+COPY libs/node ./libs/node
+COPY libs/browser ./libs/browser
+
+# Make sure the libraries are properly linked
+RUN npm rebuild

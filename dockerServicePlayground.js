@@ -1,11 +1,24 @@
+import fs from "node:fs";
 import DockerService from "./DockerService.js";
+import {parseEnvFile} from "@workspace/common";
+import path from "path";
+import {fileURLToPath} from "url";
+const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
-let docker = DockerService.getInstance({});
+console.log("_projectRootPath", _projectRootPath);
 
-console.debug(docker);
+let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"});
+let envObj = parseEnvFile(envContent);
+console.log(envObj);
+
+let dockerService = DockerService.getInstance({
+    envVars:envObj
+});
+
+console.debug(dockerService);
 
 // Listen for container ready event
-docker.on('container-started', (params) => {
+dockerService.on("container-started", (params) => {
     console.log(`Container ${params.name} is ready! Starting HTTPS proxy...`);
 
     // setTimeout(()=>{
@@ -20,7 +33,16 @@ docker.on('container-started', (params) => {
 
 });
 
-docker.startContainer('alkimia-backend', "backend", '8080');
-docker.startContainer('alkimia-frontend', "frontend", '7070');
+dockerService.on("container-stressed", (container) => {
+    console.log(`container ${container.name} is under stress`);
+});
 
-docker.monitorFor60Seconds("alkimia-backend");
+
+if(! dockerService.imageExists("intersides-workspace-base")){
+    dockerService.buildBaseImage();
+}
+dockerService.startContainer("intersides-workspace-backend", "backend", "8080", true);
+
+// dockerService.startContainer("intersides-workspace-frontend", "frontend", "7070", true);
+
+// dockerService.monitorFor60Seconds("alkimia-backend");

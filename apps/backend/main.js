@@ -1,8 +1,14 @@
 import http from "http";
-import { sayHello, printServerInfo } from "@workspace/common";
+import { sayHello, printServerInfo, parseEnvFile } from "@workspace/common";
 import { getSystemInfo } from "@workspace/node";
+
 import CryptoService from "@workspace/common/services/CryptoService.js"
 import fs from "node:fs";
+import path from "path";
+import {fileURLToPath} from "url";
+
+// Get this project root absolute path
+const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = 3000;
 
@@ -10,7 +16,6 @@ const cryptoService = CryptoService.getInstance();
 
 const appInstanceId = cryptoService.generateRandomBytes();
 
-let index = 0;
 const server = http.createServer((req, res) => {
 
     console.log("**requesting:", req.url, );
@@ -100,7 +105,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.debug("****");
+    console.debug("**:");
     printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN+"."+process.env.DOMAIN, null, process.env.ENV);
     console.log("system info: ", getSystemInfo());
 });
