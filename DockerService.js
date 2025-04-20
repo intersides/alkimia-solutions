@@ -56,6 +56,22 @@ export default function DockerService(_args = null){
     }
 
     /**
+     * Check if a container exists (running or stopped)
+     * @param {string} containerName - Name of the container
+     * @returns {Promise<boolean>} - True if container exists
+     */
+    function containerExists(containerName) {
+        try {
+            const command = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
+            const result = execSync(command, {encoding: "utf8"});
+            return parseInt(result.trim()) > 0;
+        } catch (error) {
+            console.error(`Error checking if container ${containerName} exists:`, error);
+            return false;
+        }
+    }
+
+    /**
      *
      * @param containerName
      * @return {boolean}
@@ -208,7 +224,7 @@ export default function DockerService(_args = null){
     }
 
     function imageExists(imageName){
-        const command = ` docker image inspect intersides-workspace-base >/dev/null 2>&1 && echo "exists" || echo "not exists"`;
+        const command = ` docker image inspect ${imageName} >/dev/null 2>&1 && echo "exists" || echo "not exists"`;
         const exists = execSync(command, {encoding: "utf8"});
         return exists.trim() === "exists";
     }
@@ -231,11 +247,12 @@ export default function DockerService(_args = null){
             buildBaseImage();
         }
 
-        let isRunning = containerIsRunning(name);
-        if(isRunning && forceRestart){
+        let isRunningOrStopped = containerExists(name);
+        console.warn(name, "is running or stopped", isRunningOrStopped, "should force restart:", forceRestart);
+        if(isRunningOrStopped && forceRestart){
             stopContainer(name);
         }
-        else if(isRunning){
+        else if(containerIsRunning(name)){
             console.info(`container ${name} is already running`);
             return;
         }

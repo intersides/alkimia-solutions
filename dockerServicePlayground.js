@@ -37,12 +37,9 @@ dockerService.on("container-stressed", (container) => {
     console.log(`container ${container.name} is under stress`);
 });
 
-
 if(! dockerService.imageExists("intersides-workspace-base")){
     dockerService.buildBaseImage();
 }
 dockerService.startContainer("intersides-workspace-backend", "backend", "8080", true);
+dockerService.startContainer("intersides-workspace-frontend", "frontend", "7070", true);
 
-// dockerService.startContainer("intersides-workspace-frontend", "frontend", "7070", true);
-
-// dockerService.monitorFor60Seconds("alkimia-backend");

@@ -5,19 +5,23 @@ import path from "path";
 import {fileURLToPath} from "url";
 import DockerService from "./DockerService.js";
 import { WebSocketServer } from 'ws';
+import {parseEnvFile} from "@workspace/common";
 
-// Get the current file's directory name
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
-const keyPath = path.join(__dirname, "./certs/key.pem");
-const certPath = path.join(__dirname, "./certs/fullchain.pem");
+const keyPath = path.join(_projectRootPath, "./certs/key.pem");
+const certPath = path.join(_projectRootPath, "./certs/fullchain.pem");
 
 const key = fs.readFileSync(keyPath, {encoding: "utf-8"});
 const cert = fs.readFileSync(certPath, {encoding: "utf-8"});
 
+let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"});
+let envVars = parseEnvFile(envContent);
+console.log("environment variables:", envVars);
 
-let dockerService = DockerService.getInstance({});
+let dockerService = DockerService.getInstance({
+    envVars
+});
 
 // HTTPS proxy (port 443) with SSL termination
 const sslOptions = {
