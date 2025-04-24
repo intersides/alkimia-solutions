@@ -49,8 +49,8 @@ export default function CryptoService(_args = null) {
             const randomArray = new Uint8Array(size);
             crypto.getRandomValues(randomArray);
             return Array.from(randomArray)
-            .map((byte) => ("0" + byte.toString(16)).slice(-2))
-            .join("");
+                .map((byte) => ("0" + byte.toString(16)).slice(-2))
+                .join("");
         } else {
             // Node.js environment
             return crypto.randomBytes(size).toString(encoding);

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
 import DockerService from "./DockerService.js";
-import { WebSocketServer } from 'ws';
+import { WebSocketServer } from "ws";
 import {parseEnvFile} from "@workspace/common";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ const sslOptions = {
 const routingRules = [
     {
         // Route based on path
-        match: (req) => req.url.startsWith('/api/'),
+        match: (req) => req.url.startsWith("/api/"),
         target: {
             service: "alkimia-backend",
             name: "backend",
@@ -60,7 +60,7 @@ const routingRules = [
             host: "localhost",
             port: 8080
         }
-    },
+    }
 
     // {
     //     // Route based on HTTP method
@@ -87,7 +87,7 @@ function proxyRequest(target, req, res){
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
-        console.log("forwarding...", );
+        console.log("forwarding..." );
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
 
         // Pipe the response data
@@ -153,14 +153,14 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
 
 const wss = new WebSocketServer({ server: httpsServer });
-wss.on('connection', (ws, req) => {
-    console.log('WebSocket connection established');
+wss.on("connection", (ws, req) => {
+    console.log("WebSocket connection established");
 
-    ws.on('error', console.error);
+    ws.on("error", console.error);
 
-    ws.on('message', function message(data) {
-        console.log('received: %s', data);
-        ws.send('hello from server');
+    ws.on("message", function message(data) {
+        console.log("received: %s", data);
+        ws.send("hello from server");
     });
 });
 

@@ -1,7 +1,8 @@
-import App from "./modules/App/App.js";
+import App from "./modules/App.js";
 
-const app = App.getInstance({});
-document.querySelector('#app').appendChild(app.element);
+let app = App.getInstance({});
+console.log(app);
+document.querySelector("#app").appendChild(app.element);
 
 const webSocket = new WebSocket(`wss://${location.hostname}`);
 
@@ -14,3 +15,4 @@ webSocket.addEventListener("open", (event) => {
 webSocket.addEventListener("message", (event) => {
     console.log("Message from server ", event.data);
 });
+

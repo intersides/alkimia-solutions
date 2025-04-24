@@ -2,5 +2,8 @@
   "name": "@workspace/node",
   "version": "1.0.0",
   "main": "index.js",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "bcryptjs": "^3.0.2"
+  }
 }

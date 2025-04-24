@@ -2,7 +2,7 @@ import http from "http";
 import { sayHello, printServerInfo, parseEnvFile } from "@workspace/common";
 import { getSystemInfo } from "@workspace/node";
 
-import CryptoService from "@workspace/common/services/CryptoService.js"
+import CryptoService from "@workspace/common/services/CryptoService.js";
 import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
@@ -18,7 +18,7 @@ const appInstanceId = cryptoService.generateRandomBytes();
 
 const server = http.createServer((req, res) => {
 
-    console.log("**requesting:", req.url, );
+    console.log("**requesting:", req.url );
 
     res.writeHead(200, { "Content-Type": "application/json" });
 
@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => {
 
         let queryPart = req.url.split("?")[1];
         let params = queryPart.split("&");
-        let query = {}
+        let query = {};
         params.forEach(entry=>{
             let parts = entry.split("=");
             query[parts[0]] = parts[1];
@@ -38,8 +38,8 @@ const server = http.createServer((req, res) => {
         // Get parameters from query string with defaults
         console.log("!!",query);
 
-        const intensity = parseInt(query.intensity || '1', 10);
-        const duration = parseInt(query.duration || '5000', 10);
+        const intensity = parseInt(query.intensity || "1", 10);
+        const duration = parseInt(query.duration || "5000", 10);
 
         // Limit values to prevent server crash
         const safeIntensity = Math.min(Math.max(intensity, 1), 100);
@@ -51,7 +51,7 @@ const server = http.createServer((req, res) => {
         }, 0);
 
         res.end(JSON.stringify({
-            message: 'CPU stress test started',
+            message: "CPU stress test started",
             intensity: safeIntensity,
             duration: safeDuration,
             serverTime: new Date().toISOString()
@@ -59,9 +59,9 @@ const server = http.createServer((req, res) => {
 
     }
     else if(req.url === "/api/stress/incremental"){
-        const steps = parseInt(req.query.steps || '5', 10);
-        const maxIntensity = parseInt(req.query.maxIntensity || '50', 10);
-        const stepDuration = parseInt(req.query.stepDuration || '10000', 10);
+        const steps = parseInt(req.query.steps || "5", 10);
+        const maxIntensity = parseInt(req.query.maxIntensity || "50", 10);
+        const stepDuration = parseInt(req.query.stepDuration || "10000", 10);
 
         // Limit values
         const safeSteps = Math.min(Math.max(steps, 1), 20);
@@ -79,7 +79,7 @@ const server = http.createServer((req, res) => {
 
         res.end(JSON.stringify(
             {
-                message: 'Incremental CPU stress test started',
+                message: "Incremental CPU stress test started",
                 steps: safeSteps,
                 maxIntensity: safeMaxIntensity,
                 stepDuration: safeStepDuration,

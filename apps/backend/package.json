@@ -4,7 +4,6 @@
   "main": "server.js",
   "type": "module",
   "dependencies": {
-    "@alkimia/lib": "^1.0.9",
     "@workspace/common": "*",
     "@workspace/node": "*",
     "jose": "^6.0.10",

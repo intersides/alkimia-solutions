@@ -15,12 +15,12 @@
     "create-app-service": "npx @alkimia/framework --srcDir=src/services/",
     "build": "vite build",
     "compile-scss": "npx sass src",
-    "development": "vite",
-    "production": "vite preview --port 3000"
+    "development": "pm2-runtime start ecosystem.config.cjs --env development",
+    "production": "pm2-runtime start ecosystem.config.cjs --env production"
   },
   "devDependencies": {
     "@alkimia/framework": "^0.1.0",
     "esbuild": "0.24.2",
-    "vite": "^6.1.0"
+    "pm2": "^6.0.5"
   }
 }

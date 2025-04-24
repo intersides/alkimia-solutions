@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import DockerService from "./DockerService.js";
+import DockerService from "../DockerService.js";
 import {parseEnvFile} from "@workspace/common";
 import path from "path";
 import {fileURLToPath} from "url";

@@ -230,10 +230,10 @@ export default function DockerService(_args = null){
     }
 
     function buildBaseImage(){
-        const buildCommand = `docker build \
+        const buildCommand = "docker build \
           -f Dockerfile.base \
           -t intersides-workspace-base \
-          .`;
+          .";
 
         execSync(buildCommand, {
             cwd: __dirname, // ensures Docker context is correct
@@ -257,7 +257,7 @@ export default function DockerService(_args = null){
             return;
         }
 
-        console.log(`Starting container ...`, __dirname);
+        console.log("Starting container ...", __dirname);
 
         const buildCommand = `docker build \
           -f apps/${service}/Dockerfile \
@@ -271,8 +271,8 @@ export default function DockerService(_args = null){
         });
 
         let volumeFlags = [
-            `-v /app/node_modules`,
-            `-v /app/dist`
+            "-v /app/node_modules",
+            "-v /app/dist"
         ];
         if(envVars.ENV === "development"){
             // const root = process.cwd();
