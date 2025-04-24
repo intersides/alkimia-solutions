@@ -4,29 +4,24 @@ import {HttpResponse} from "@workspace/node/httpLib.js";
 import {MimeType} from "@workspace/common/enums.js";
 import path from "node:path";
 const url = await import("url");
-const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
+const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 const __projectRoot = path.resolve(__dirname, "../../");
 const __appRoot = path.resolve(__dirname, "./");
 
 globalThis.__projectRoot = __projectRoot;
 globalThis.__appRoot = __appRoot;
 
-
 const staticDir = `${globalThis.__appRoot}/src`;
 const sharedDir = `${globalThis.__projectRoot}/libs`;
 const modulesDir = `${globalThis.__projectRoot}/node_modules`;
-
-console.log("staticDir", staticDir);
-console.log("sharedDir", sharedDir);
-console.log("modulesDir", modulesDir);
 
 //mimic env vars
 let envVars = {
     ENV:"production"
 };
 
-let main = Server.getInstance({
+Server.getInstance({
     port:7171,
     router : Router.getInstance({
         staticDir,
@@ -56,8 +51,8 @@ let main = Server.getInstance({
                                             </head>
                                             <body>
                                                 <h2>Some text !!</h2>
-                                                <img src="noface.png">
-                                                <img src="vite.svg">
+                                                <img alt="no-face" src="noface.png">
+                                                <img alt="logo" width="150px" src="intersides_logo.svg">
                                                 <div id="app"></div>
                                                 <script type="importmap">
                                                     {

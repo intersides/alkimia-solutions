@@ -1,14 +1,16 @@
 import http from "http";
 import { sayHello, printServerInfo, parseEnvFile } from "@workspace/common";
 import { getSystemInfo } from "@workspace/node";
-
 import CryptoService from "@workspace/common/services/CryptoService.js";
-import fs from "node:fs";
-import path from "path";
+import path from "node:path";
 import {fileURLToPath} from "url";
 
-// Get this project root absolute path
-const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __projectRoot = path.resolve(__dirname, "../../");
+const __appRoot = path.resolve(__dirname, "./");
+
+globalThis.__projectRoot = __projectRoot;
+globalThis.__appRoot = __appRoot;
 
 const PORT = 3000;
 
