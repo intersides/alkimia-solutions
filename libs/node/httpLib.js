@@ -1,8 +1,8 @@
 import {utilities} from "@alkimia/lib";
 import {MimeType} from "@workspace/common/enums.js";
+import Console from "@intersides/console";
 
 const MAX_PAYLOAD_SIZE = 1024 * 1024 * 3; //3MB
-
 
 /**
  *
@@ -11,51 +11,54 @@ const MAX_PAYLOAD_SIZE = 1024 * 1024 * 3; //3MB
  * @return {*}
  * @constructor
  */
-export const HttpResponse = function(body, mimeType= MimeType.TEXT){
+export const HttpResponse = function(body, mimeType = MimeType.TEXT){
     let payload = body;
 
     switch(mimeType){
-    case MimeType.JSON:{
-        try{
-            payload = JSON.stringify(body, null, 4);
-        }catch(e){
-            console.error("failed to stringify body as ", body);
+        case MimeType.JSON:{
+            try{
+                payload = JSON.stringify(body, null, 4);
+            }
+            catch(e){
+                Console.error("failed to stringify body as ", body);
+            }
         }
-    }break;
+            break;
 
-    default:{
-        console.warn("mimeType default case triggered");
-    }
-
+        default:{
+            Console.warn("mimeType default case triggered");
+        }
 
     }
 
     const response = new Response(payload, {header: null});
-    console.log("about to extend the headers with mimetype", mimeType);
+    Console.log("about to extend the headers with mimetype", mimeType);
     extendHeaders(response.headers, mimeType);
     return response;
 };
 
 export function HttpError(errorMessage, errorCode){
-    return  new Response(JSON.stringify({ error: errorMessage }), {
+
+    return new Response(JSON.stringify({error: errorMessage}), {
         status: errorCode,
-        headers: { "Content-Type": "application/json" }
+        headers: {"Content-Type": "application/json"}
     });
 }
 
-
-export function extendHeaders(_headers, type = MimeType.JSON) {
+export function extendHeaders(_headers, type = MimeType.JSON){
 
     switch(type){
-    case MimeType.HTML:
-    case MimeType.CSS:
-    case MimeType.TEXT:{
-        _headers.set("Content-Type", `${type}; charset=utf-8`);
-    }break;
+        case MimeType.HTML:
+        case MimeType.CSS:
+        case MimeType.TEXT:{
+            _headers.set("Content-Type", `${type}; charset=utf-8`);
+        }
+            break;
 
-    default:{
-        _headers.set("Content-Type", type);
-    }break;
+        default:{
+            _headers.set("Content-Type", type);
+        }
+            break;
     }
 
     _headers.set(
@@ -78,12 +81,10 @@ export function extendHeaders(_headers, type = MimeType.JSON) {
         "Content-Type, Authorization"
     ); // Allow specified headers
 
-
     // Set security headers
     _headers.set("X-Content-Type-Options", "nosniff");
     _headers.set("X-Frame-Options", "DENY");
     _headers.set("X-XSS-Protection", "1; mode=block");
-
 
     //NOTE: uncommenting the next header setting will cause:
     // Refused to execute inline script because it violates the following
@@ -94,7 +95,6 @@ export function extendHeaders(_headers, type = MimeType.JSON) {
     // To be noted also that 'script-src' was not explicitly set, so 'default-src' is used as a fallback.
 
     // _headers.set("Content-Security-Policy", "default-src 'self'");
-
 
     return _headers;
 
@@ -158,47 +158,48 @@ export const successResponseHandler = (response, serverResponse) => {
     response.end();
 };
 
-function _retrieveRequestBody(_request) {
+function _retrieveRequestBody(_request){
     return new Promise((resolve, reject) => {
         let body = "";
-        _request.on("data", function(chunk) {
-            if (body.length + chunk.length > MAX_PAYLOAD_SIZE) {
+        _request.on("data", function(chunk){
+            if(body.length + chunk.length > MAX_PAYLOAD_SIZE){
                 reject(Error("payload too large"));
             }
-            else {
+            else{
                 // If the payload size is within the limit, continue accumulating data
                 body += chunk.toString(); // convert Buffer to string
             }
         });
-        _request.on("close", () => {});
+        _request.on("close", () => {
+        });
         _request.on("end", () => {
             let payload = null;
-            try {
-                if (utilities.isNonemptyString(body)) {
+            try{
+                if(utilities.isNonemptyString(body)){
                     //This might be url encoded as it is sent from the VR headset
                     body = decodeURIComponent(body);
 
-                    if (
+                    if(
                         _request.headers["content-type"] &&
                         _request.headers["content-type"].includes("multipart/form-data")
-                    ) {
-                        // console.debug("content type is multipart/form-data");
+                    ){
+                        // Console.debug("content type is multipart/form-data");
 
                         let jsonStarted = false;
                         let jsonEnded = false;
                         let json = "";
                         const lines = body.split("\n");
 
-                        for (const line of lines) {
-                            if (line.trim() === "{") {
+                        for(const line of lines){
+                            if(line.trim() === "{"){
                                 jsonStarted = true;
                             }
 
-                            if (jsonStarted && !jsonEnded) {
+                            if(jsonStarted && !jsonEnded){
                                 json += line.trim() + "\n";
                             }
 
-                            if (line.trim() === "}") {
+                            if(line.trim() === "}"){
                                 jsonEnded = true;
                             }
                         }
@@ -208,21 +209,21 @@ function _retrieveRequestBody(_request) {
                     payload = JSON.parse(body);
                 }
             }
-            catch (parsingException) {
-                console.error(parsingException.message);
-                console.error("failed to parse json body", body);
+            catch(parsingException){
+                Console.error(parsingException.message);
+                Console.error("failed to parse json body", body);
             }
             resolve(payload);
         });
         /* c8 ignore next 4 */
         _request.on("error", (err) => {
-            console.error("error event:", err);
+            Console.error("error event:", err);
             reject(err);
         });
     });
 }
 
-function isWebSocketRequest(request) {
+function isWebSocketRequest(request){
     const isUpgrade = request.headers["upgrade"] && request.headers["upgrade"].toLowerCase() === "websocket";
     const isConnectionUpgrade = request.headers["connection"] && request.headers["connection"].toLowerCase().includes("upgrade");
     const hasWebSocketKey = request.headers["sec-websocket-key"] !== undefined;
@@ -230,7 +231,7 @@ function isWebSocketRequest(request) {
     return isUpgrade && isConnectionUpgrade && hasWebSocketKey;
 }
 
-export async function distillRequest(request, withBody = true) {
+export async function distillRequest(request, withBody = true){
 
     const url = {
         path: request.url,
@@ -240,11 +241,11 @@ export async function distillRequest(request, withBody = true) {
     let body = null;
 
     const urlParts = request.url.split("?");
-    if (urlParts.length > 0) {
+    if(urlParts.length > 0){
         url.path = urlParts[0];
-        if (urlParts.length === 2) {
+        if(urlParts.length === 2){
             const parameterSplit = urlParts[1].split("&");
-            if (parameterSplit.length > 0) {
+            if(parameterSplit.length > 0){
                 parameterSplit.forEach((_parameterPair) => {
                     const keyValue = _parameterPair.split("=");
                     url.query[keyValue[0]] = decodeURIComponent(keyValue[1]);
@@ -257,7 +258,7 @@ export async function distillRequest(request, withBody = true) {
 
     if(utilities.isNotNullObject(request.headers)){
 
-        const { accept = null } = request.headers;
+        const {accept = null} = request.headers;
 
         if(accept){
             if(accept.includes(MimeType.IMAGE)){
@@ -272,10 +273,9 @@ export async function distillRequest(request, withBody = true) {
             else if(accept.includes(MimeType.HTML)){
                 type = MimeType.HTML;
             }
-            else {
-                console.warn(`mime type not extracted from accept ${accept}`);
+            else{
+                Console.warn(`mime type not extracted from accept ${accept}`);
             }
-
 
         }
         else{
@@ -284,15 +284,14 @@ export async function distillRequest(request, withBody = true) {
 
     }
     else{
-        console.warn("request has no headers");
+        Console.warn("request has no headers");
     }
 
-
-    if (withBody) {
+    if(withBody){
         body = await _retrieveRequestBody(request);
     }
     else{
-        console.warn("request has no body");
+        Console.warn("request has no body");
     }
 
     return {

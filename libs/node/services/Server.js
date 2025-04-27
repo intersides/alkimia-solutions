@@ -2,6 +2,7 @@ import {utilities as Utilities} from "@alkimia/lib";
 import http from "node:http";
 import {distillRequest} from "../httpLib.js";
 import {Readable} from "stream";
+import Console from "@intersides/console";
 
 /**
  * @param {object} _args
@@ -23,10 +24,10 @@ export default function Server(_args){
     function _requestHandler(_rawRequest, _response){
 
         distillRequest(_rawRequest).then(function(_request){
-            console.debug("a received request has been distilled as:", _request);
+            // Console.debug("a received request has been distilled as:", _request);
 
             router.handleRequest(_request).then(function(_httpResponse){
-                console.log("_Response", _httpResponse);
+                // Console.log("_Response", _httpResponse);
 
                 if(Utilities.isNotNullObject(_httpResponse)){
 
@@ -47,16 +48,12 @@ export default function Server(_args){
                 }
 
             }).catch(async function(httpError){
-
-                console.error("httpError", httpError);
-
                 const body = await httpError.text();
-                _response.writeHead(httpError.status,{
+                _response.writeHead(httpError.status, {
                     "Content-Length": Buffer.byteLength(body),
                     ...Object.fromEntries(httpError.headers.entries())
                 });
                 _response.end(body);
-
             });
 
         });
@@ -67,10 +64,10 @@ export default function Server(_args){
         instance.httpServer = http.createServer({}, _requestHandler);
         instance.httpServer.listen(port, null, null, async function(err){
             if(err){
-                console.error("error starting server");
+                Console.error("error starting server");
             }
             else{
-                console.info(`http server running on port ${port}`);
+                Console.info(`http server running on port ${port}`);
             }
         });
         return instance;

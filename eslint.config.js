@@ -18,7 +18,14 @@ export default [
             }
         },
         rules: {
-            "indent": ["error", 4],
+            "indent": [
+                "error",
+                4,
+                {
+                    SwitchCase: 1,
+                    ignoredNodes: ["ConditionalExpression"]
+                }
+            ],
             "linebreak-style": ["error", "unix"],
             "quotes": ["error", "double"],
             "semi": ["error", "always"],

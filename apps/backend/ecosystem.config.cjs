@@ -6,7 +6,10 @@ module.exports = {
         exec_mode: "cluster",
         watch:  process.env.ENV === "development" || process.env.NODE_ENV === "development",
         watch_delay: 1000,
-        ignore_watch: ["node_modules", "tmp.json"],
+        ignore_watch: [
+            "node_modules",
+            "tmp.json"
+        ],
         watch_options: {
             "followSymlinks": false
         },

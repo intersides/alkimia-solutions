@@ -10,7 +10,7 @@
     "pm2": "^6.0.5"
   },
   "scripts": {
-    "development": "pm2-runtime start ecosystem.config.cjs --env development",
-    "production": "pm2-runtime start ecosystem.config.cjs --env production"
+    "development": "ENV=development pm2-runtime start ecosystem.config.cjs --env development",
+    "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production"
   }
 }

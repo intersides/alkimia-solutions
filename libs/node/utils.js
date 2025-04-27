@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { utilities } from "@alkimia/lib";
+import Console from "@intersides/console";
 import * as path from "node:path";
 import fs from "fs";
 
@@ -28,7 +29,7 @@ export default {
             try {
                 bcrypt.compare(password1, password2, function(error, isMatch) {
                     if(error) {
-                        console.error(error.message);
+                        Console.error(error.message);
                         resolve(false);
                     }
                     else {
@@ -37,14 +38,14 @@ export default {
                 });
             }
             catch(e) {
-                console.error(e.message);
+                Console.error(e.message);
                 resolve(false);
             }
         });
     },
 
     isFileInDirectory: function(fileName, directoryPath) {
-        console.debug("directoryPath", directoryPath);
+        Console.debug("directoryPath", directoryPath);
         const filePath = path.join(directoryPath, fileName);
         return fs.existsSync(filePath);
     }

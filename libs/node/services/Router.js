@@ -1,9 +1,10 @@
 "use strict";
-import { utilities } from "@alkimia/lib";
+import {utilities} from "@alkimia/lib";
 import fs from "fs";
 import {HttpErrorStatus, MimeType} from "@workspace/common/enums.js";
 import httpUtils from "@workspace/common/httpUtils.js";
 import {HttpError, HttpResponse} from "../httpLib.js";
+import Console from "@intersides/console";
 
 // import networkUtils from "../network-utils.js";
 // import { HttpError, HttpErrorStatus } from "../../../shared-js/comm/Responses.js";
@@ -23,7 +24,7 @@ import {HttpError, HttpResponse} from "../httpLib.js";
  *    Keys are HTTP methods (e.g., "GET", "POST") and values are objects mapping paths to handlers.
  * @returns {Router} Router instance.
  */
-export default function Router(args) {
+export default function Router(args){
 
     /**
      * @type {Router|*}
@@ -39,11 +40,10 @@ export default function Router(args) {
     } = utilities.transfer(args, {
         instanceId: null,
         routes: null,
-        staticDir:null,
-        sharedDir:null,
-        modulesDir:null
+        staticDir: null,
+        sharedDir: null,
+        modulesDir: null
     });
-
 
     /**
      *
@@ -55,12 +55,14 @@ export default function Router(args) {
         return instance;
     };
 
-    function _registerEvents() {}
+    function _registerEvents(){
+    }
 
     function _getHandler(_request){
         const path = _request.url.path;
         const method = _request.method.toUpperCase();
-        console.info("request info ->", path, method);
+        Console.info("request info ->", path, method);
+        Console.info("request routes ->", routes);
         if(
             utilities.isNotNullObject(routes) &&
             utilities.isNotNullObject(routes[method])
@@ -69,7 +71,7 @@ export default function Router(args) {
                 return routes[method][path].handler;
             }
             else{
-                // console.warn(`handler for ${path} not found for request:`, _request);
+                // Console.warn(`handler for ${path} not found for request:`, _request);
                 return null;
             }
         }
@@ -80,7 +82,7 @@ export default function Router(args) {
     }
 
     instance.httpRequestListener = async function(req){
-        console.log(req);
+        Console.log(req);
     };
 
     /**
@@ -89,7 +91,9 @@ export default function Router(args) {
      */
     function _handleRequest(request){
 
-        return new Promise( function(resolve, reject){
+        // Console.warn("WARN: request", request);
+
+        return new Promise(function(resolve, reject){
 
             let assetsDir = staticDir;
             const handler = _getHandler(request);
@@ -98,23 +102,23 @@ export default function Router(args) {
             }
             else{
                 let urlPath = request.url.path.replace(/^\//, "");
-                console.debug("WARN: urlPath:", urlPath);
+                Console.debug("WARN: urlPath:", urlPath);
                 if(urlPath.startsWith("node_modules/")){
                     assetsDir = modulesDir;
                     urlPath = urlPath.replace("node_modules/", "");
-                }else if(urlPath.startsWith("shared/")){
+                }
+                else if(urlPath.startsWith("shared/")){
                     assetsDir = sharedDir;
                     urlPath = urlPath.replace("shared/libs/", "");
                 }
                 let fileName = httpUtils.fileNameFromUrl(request.url.path);
                 let staticFileTarget = `${assetsDir}/${urlPath}`;
 
-
                 fs.readFile(staticFileTarget, (err, data) => {
-                    if (err) {
-                        console.error("ERROR: handler not found... trying to look for a resource in staticFileTarget:", staticFileTarget);
-                        console.error(`ERROR: fileName from urlPath[${urlPath}]:`, fileName);
-                        throw HttpError(HttpErrorStatus.Http404_Not_Found.value, HttpErrorStatus.Http404_Not_Found.code);
+                    if(err){
+                        Console.error("ERROR: handler not found... trying to look for a resource in staticFileTarget:", staticFileTarget);
+                        Console.error(`ERROR: fileName from urlPath[${urlPath}]:`, fileName);
+                        return reject(HttpError(HttpErrorStatus.Http404_Not_Found.value, HttpErrorStatus.Http404_Not_Found.code));
                     }
 
                     let mimeType = MimeType.TEXT;
@@ -122,58 +126,73 @@ export default function Router(args) {
                     const fileType = fileName.split(".")[1];
                     switch(fileType){
 
-                    case "css":{
-                        mimeType = MimeType.CSS;
-                    }break;
+                        case "css":{
+                            mimeType = MimeType.CSS;
+                        }
+                            break;
 
-                    case "cur":
-                    case "ico":{
-                        mimeType = MimeType.FAVICON;
-                    }break;
+                        case "cur":
+                        case "ico":{
+                            mimeType = MimeType.FAVICON;
+                        }
+                            break;
 
-                    case "bmp":{
-                        mimeType = MimeType.BMP;
-                    }break;
+                        case "bmp":{
+                            mimeType = MimeType.BMP;
+                        }
+                            break;
 
-                    case "png":{
-                        mimeType = MimeType.PNG;
-                    }break;
+                        case "png":{
+                            mimeType = MimeType.PNG;
+                        }
+                            break;
 
-                    case "gif":{
-                        mimeType = MimeType.GIF;
-                    }break;
+                        case "gif":{
+                            mimeType = MimeType.GIF;
+                        }
+                            break;
 
-                    case "svg":{
-                        mimeType = MimeType.SVG;
-                    }break;
+                        case "svg":{
+                            mimeType = MimeType.SVG;
+                        }
+                            break;
 
-                    case "tiff":
-                    case "tif":{
-                        mimeType = MimeType.TIFF;
-                    }break;
+                        case "tiff":
+                        case "tif":{
+                            mimeType = MimeType.TIFF;
+                        }
+                            break;
 
-                    case "avif":{
-                        mimeType = MimeType.AVIF;
-                    }break;
-                    case "webp":{
-                        mimeType = MimeType.WEBP;
-                    }break;
+                        case "avif":{
+                            mimeType = MimeType.AVIF;
+                        }
+                            break;
+                        case "webp":{
+                            mimeType = MimeType.WEBP;
+                        }
+                            break;
 
-                    case "jfif":
-                    case "jif":
-                    case "jpe":
-                    case "jpeg":
-                    case "jpg":{
-                        mimeType = MimeType.JPG;
-                    }break;
+                        case "jfif":
+                        case "jif":
+                        case "jpe":
+                        case "jpeg":
+                        case "jpg":{
+                            mimeType = MimeType.JPG;
+                        }
+                            break;
 
-                    case "cjs":
-                    case "mjs":
-                    case "js":{
-                        mimeType = MimeType.JS;
-                    }break;
+                        case "cjs":
+                        case "mjs":
+                        case "js":{
+                            mimeType = MimeType.JS;
+                        }
+                            break;
+
+                        default:{
+                            mimeType = MimeType.TEXT;
+                        }
                     }
-                    console.debug("MimeType of the requested file:", mimeType);
+                    Console.debug("MimeType of the requested file:", mimeType);
 
                     const response = HttpResponse(data, mimeType);
                     resolve(response);
@@ -198,13 +217,13 @@ export default function Router(args) {
  */
 let _instance = null;
 
-Router.getSingleton = function(_args = null) {
-    if (!_instance) {
+Router.getSingleton = function(_args = null){
+    if(!_instance){
         _instance = Router(_args);
     }
     return _instance;
 };
 
-Router.getInstance = function(_args) {
+Router.getInstance = function(_args){
     return Router(_args);
 };
