@@ -241,7 +241,14 @@ export default function DockerService(_args = null){
         });
     }
 
-    function startContainer(name, service, port, forceRestart = false){
+    function startContainer({
+        name,
+        service,
+        port,
+        forceRestart = false
+    }){
+
+        console.debug("DEBUG: params", _args);
 
         if(!imageExists("intersides-workspace-base")){
             buildBaseImage();
@@ -285,6 +292,8 @@ export default function DockerService(_args = null){
           --name ${name} \
           -p ${port}:${envVars.DOCKER_FILE_PORT} \
           -e ENV=${envVars.ENV} \
+          -e PUBLIC_PORT=${port}\
+          -e PORT=${envVars.DOCKER_FILE_PORT}\
           -e PROTOCOL=${envVars.PROTOCOL} \
           -e DOMAIN=${envVars.DOMAIN}\
           -e SUBDOMAIN=${service} \

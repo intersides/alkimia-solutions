@@ -11,6 +11,7 @@ COPY --from=base /repo/package.json /repo/package-lock.json ./
 COPY --from=base /repo/node_modules ./node_modules
 COPY --from=base /repo/libs/common ./libs/common
 COPY --from=base /repo/libs/browser ./libs/browser
+COPY --from=base /repo/libs/node ./libs/node
 
 # Copy backend app to root of /app
 COPY apps/frontend .
@@ -19,10 +20,11 @@ COPY apps/frontend .
 RUN npm install
 
 #if production...
-RUN npm run build
+#RUN npm run development
 
+RUN echo "mode: $ENV"
 
 EXPOSE 3000
 
 # Run the backend
-CMD ["sh", "-c", "npm run production"]
+CMD ["sh", "-c", "npm run development"]

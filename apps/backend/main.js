@@ -17,8 +17,15 @@ globalThis.__projectRoot = __projectRoot;
 globalThis.__appRoot = __appRoot;
 
 Console.debug("DEBUG: PORT", process.env.PORT);
+Console.debug("DEBUG: PUBLIC_PORT", process.env.PUBLIC_PORT);
+Console.debug("DEBUG: PUBLIC_PORT", process.env.PUBLIC_PORT);
+
 
 const PORT = process.env.PORT || 3000;
+const PUBLIC_PORT = process.env.PUBLIC_PORT || PORT;
+const PROTOCOL = process.env.PROTOCOL || "https";
+const SUBDOMAIN = process.env.SUBDOMAIN || "";
+const DOMAIN = process.env.DOMAIN || "localhost";
 
 const cryptoService = CryptoService.getInstance();
 
@@ -52,6 +59,7 @@ function createLoad(intensity, duration){
 
 Server.getInstance({
     port: PORT,
+    publicAddress: `${PROTOCOL}://${!!SUBDOMAIN ? SUBDOMAIN+"." : ""}${DOMAIN}:${PUBLIC_PORT}`,
     router: Router.getInstance({
         staticDir,
         // sharedDir,
@@ -153,5 +161,4 @@ Server.getInstance({
             }
         }
     })
-
 });

@@ -7,6 +7,7 @@
     "@alkimia/lib": "^1.0.9",
     "@workspace/browser": "*",
     "@workspace/common": "*",
+    "@workspace/node": "*",
     "sass": "^1.86.3"
   },
   "scripts": {
@@ -15,8 +16,8 @@
     "create-app-service": "npx @alkimia/framework --srcDir=src/services/",
     "build": "vite build",
     "compile-scss": "npx sass src",
-    "development": "pm2-runtime start ecosystem.config.cjs --env development",
-    "production": "pm2-runtime start ecosystem.config.cjs --env production"
+    "development": "ENV=development pm2 start ecosystem.config.cjs --env development  --no-daemon",
+    "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production"
   },
   "devDependencies": {
     "@alkimia/framework": "^0.1.0",

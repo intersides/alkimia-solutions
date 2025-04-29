@@ -2,5 +2,8 @@
   "name": "@workspace/common",
   "version": "1.0.0",
   "main": "index.js",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@alkimia/lib": "^1.0.9"
+  }
 }

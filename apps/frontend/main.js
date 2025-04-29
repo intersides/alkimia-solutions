@@ -6,23 +6,23 @@ import path from "node:path";
 const url = await import("url");
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
-const __projectRoot = path.resolve(__dirname, "../../");
 const __appRoot = path.resolve(__dirname, "./");
 
-globalThis.__projectRoot = __projectRoot;
 globalThis.__appRoot = __appRoot;
 
 const staticDir = `${globalThis.__appRoot}/src`;
-const sharedDir = `${globalThis.__projectRoot}/libs`;
-const modulesDir = `${globalThis.__projectRoot}/node_modules`;
+const sharedDir = `${globalThis.__appRoot}/libs`;
+const modulesDir = `${globalThis.__appRoot}/node_modules`;
 
-//mimic env vars
-let envVars = {
-    ENV:"production"
-};
+const PORT = process.env.PORT || 3000;
+const PUBLIC_PORT = process.env.PUBLIC_PORT || PORT;
+const PROTOCOL = process.env.PROTOCOL || "https";
+const SUBDOMAIN = process.env.SUBDOMAIN || "";
+const DOMAIN = process.env.DOMAIN || "localhost";
 
 Server.getInstance({
-    port:7171,
+    port:PORT,
+    publicAddress: `${PROTOCOL}://${!!SUBDOMAIN ? SUBDOMAIN+"." : ""}${DOMAIN}:${PUBLIC_PORT}`,
     router : Router.getInstance({
         staticDir,
         sharedDir,

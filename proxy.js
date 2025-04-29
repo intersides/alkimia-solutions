@@ -6,6 +6,7 @@ import {fileURLToPath} from "url";
 import DockerService from "./DockerService.js";
 import { WebSocketServer } from "ws";
 import {parseEnvFile} from "@workspace/common";
+import Console from "@intersides/console";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +18,7 @@ const cert = fs.readFileSync(certPath, {encoding: "utf-8"});
 
 let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"});
 let envVars = parseEnvFile(envContent);
-console.log("environment variables:", envVars);
+Console.log("environment variables:", envVars);
 
 let dockerService = DockerService.getInstance({
     envVars
@@ -76,7 +77,7 @@ const routingRules = [
 
 
 function proxyRequest(target, req, res){
-    console.log(`Routing to: ${target.host}:${target.port}`);
+    Console.log(`Routing to: ${target.host}:${target.port}`);
 
     const proxyReq = http.request({
         host: target.host,
@@ -87,7 +88,7 @@ function proxyRequest(target, req, res){
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
-        console.log("forwarding..." );
+        Console.log("forwarding..." );
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
 
         // Pipe the response data
@@ -99,7 +100,7 @@ function proxyRequest(target, req, res){
 
     // Handle errors
     proxyReq.on("error", (err) => {
-        console.error("Proxy request error:", err);
+        Console.error("Proxy request error:", err);
         if(!res.headersSent){
             res.writeHead(502);
             res.end("Bad Gateway");
@@ -112,11 +113,14 @@ function proxyRequest(target, req, res){
 
 const httpsServer = https.createServer(sslOptions, function(req, res){
     // Log the incoming request
-    console.log(`Received request: ${req.method} ${req.url}`);
-    console.log(`Host header: ${req.headers.host}`);
+    Console.log(`Received request: ${req.method} ${req.url}`);
+    Console.log(`Host header: ${req.headers.host}`);
 
     // Determine the target server based on routing rules
     const route = routingRules.find(rule => rule.match(req));
+
+    console.debug("DEBUG: route->", route);
+
     const target = route?.target || {
         service: "alkimia-backend",
         name: "backend",
@@ -124,29 +128,35 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
         port: 8080
     };
 
-    console.debug("target:", target);
+    Console.debug("target:", target);
 
     dockerService.checkContainerRunning(target.service).then((isRunning) => {
-        console.debug(target.service, isRunning);
+        Console.debug("service:", target.service, "is running:", isRunning);
         if(!isRunning){
-            dockerService.startContainer(target.service, target.name, target.port);
+            dockerService.startContainer({
+                name:target.service,
+                service:target.name,
+                port: target.port
+            });
 
             dockerService.waitForContainerReady(target.service).then(() => {
-                console.debug(`container ${target.service} is now running`);
+                Console.debug(`container ${target.service} is now running`);
 
                 proxyRequest(target, req, res);
 
             }).catch(err => {
-                console.error(err);
+                Console.error(err);
             });
 
         }
         else{
+            Console.debug("forwarding request :", req.url, "to service:", target.service);
+
             proxyRequest(target, req, res);
         }
 
     }).catch(err => {
-        console.error(err);
+        Console.error(err);
     });
 
 });
@@ -154,12 +164,12 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
 const wss = new WebSocketServer({ server: httpsServer });
 wss.on("connection", (ws, req) => {
-    console.log("WebSocket connection established");
+    Console.log("WebSocket connection established");
 
-    ws.on("error", console.error);
+    ws.on("error", Console.error);
 
     ws.on("message", function message(data) {
-        console.log("received: %s", data);
+        Console.log("received: %s", data);
         ws.send("hello from server");
     });
 });
@@ -167,5 +177,5 @@ wss.on("connection", (ws, req) => {
 
 
 httpsServer.listen(443, () => {
-    console.log("HTTPS proxy server listening on port 443");
+    Console.log("HTTPS proxy server listening on port 443");
 });

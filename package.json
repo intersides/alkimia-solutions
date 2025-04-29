@@ -9,8 +9,8 @@
   ],
   "main": "index.js",
   "scripts": {
-    "development": "ENV=development nodemon --watch . proxy.js",
-    "production": "ENV=production node proxy.js",
+    "proxy-development": "ENV=development pm2 start ecosystem.config.cjs --no-daemon",
+    "proxy-production": "ENV=production pm2 start ecosystem.config.cjs",
     "docker-build-base": "docker build -f Dockerfile.base -t intersides-workspace-base .",
     "docker-build-backend": "docker build -f apps/backend/Dockerfile -t intersides-workspace-backend .",
     "docker-debug-backend": " docker run -it --rm --entrypoint sh intersides-workspace-backend",
@@ -27,6 +27,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@intersides/console": "^1.0.2",
+    "pm2": "^6.0.5",
     "ws": "^8.18.1"
   },
   "devDependencies": {

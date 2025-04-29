@@ -102,7 +102,9 @@ export default function Router(args){
             }
             else{
                 let urlPath = request.url.path.replace(/^\//, "");
+
                 Console.debug("WARN: urlPath:", urlPath);
+
                 if(urlPath.startsWith("node_modules/")){
                     assetsDir = modulesDir;
                     urlPath = urlPath.replace("node_modules/", "");
@@ -116,8 +118,7 @@ export default function Router(args){
 
                 fs.readFile(staticFileTarget, (err, data) => {
                     if(err){
-                        Console.error("ERROR: handler not found... trying to look for a resource in staticFileTarget:", staticFileTarget);
-                        Console.error(`ERROR: fileName from urlPath[${urlPath}]:`, fileName);
+                        Console.error("ERROR: handler not found... trying to look for a resource in \n\tstaticFileTarget:", staticFileTarget, "\n\tfileName:", urlPath);
                         return reject(HttpError(HttpErrorStatus.Http404_Not_Found.value, HttpErrorStatus.Http404_Not_Found.code));
                     }
 

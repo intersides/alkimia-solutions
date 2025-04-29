@@ -13,10 +13,12 @@ export default function Server(_args){
     const instance = Object.create(Server.prototype);
 
     const {
+        publicAddress,
         port,
         router
     } = Utilities.transfer(_args, {
         port: 8080,
+        publicAddress:"http://localhost",
         router: function(){
         }
     });
@@ -67,7 +69,7 @@ export default function Server(_args){
                 Console.error("error starting server");
             }
             else{
-                Console.info(`http server running on port ${port}`);
+                Console.info(`http server running ${publicAddress}`);
             }
         });
         return instance;

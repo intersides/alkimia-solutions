@@ -40,6 +40,18 @@ dockerService.on("container-stressed", (container) => {
 if(! dockerService.imageExists("intersides-workspace-base")){
     dockerService.buildBaseImage();
 }
-dockerService.startContainer("intersides-workspace-backend", "backend", "8080", true);
-dockerService.startContainer("intersides-workspace-frontend", "frontend", "7070", true);
+
+// dockerService.startContainer({
+//     name:"intersides-workspace-backend",
+//     service:"backend",
+//     port:8080,
+//     forceRestart:true
+// });
+
+dockerService.startContainer({
+    name:"intersides-workspace-frontend",
+    service:"frontend",
+    port:7070,
+    forceRestart:true
+});
 
