@@ -20,7 +20,6 @@ Console.debug("DEBUG: PORT", process.env.PORT);
 Console.debug("DEBUG: PUBLIC_PORT", process.env.PUBLIC_PORT);
 Console.debug("DEBUG: PUBLIC_PORT", process.env.PUBLIC_PORT);
 
-
 const PORT = process.env.PORT || 3000;
 const PUBLIC_PORT = process.env.PUBLIC_PORT || PORT;
 const PROTOCOL = process.env.PROTOCOL || "https";
@@ -59,24 +58,24 @@ function createLoad(intensity, duration){
 
 Server.getInstance({
     port: PORT,
-    publicAddress: `${PROTOCOL}://${!!SUBDOMAIN ? SUBDOMAIN+"." : ""}${DOMAIN}:${PUBLIC_PORT}`,
+    publicAddress: `${PROTOCOL}://${!!SUBDOMAIN ? SUBDOMAIN + "." : ""}${DOMAIN}:${PUBLIC_PORT}`,
     router: Router.getInstance({
         staticDir,
         // sharedDir,
         // modulesDir,
         routes: {
-            // default:{
-            //     handler: () => HttpResponse({msg: "hello"}, MimeType.JSON)
-            // },
-            POST:{
-                "/api/setCounter":{
+            "*":{
+                handler: (req) => {
+                    Console.info("incoming:", req.url, "\n\t\twith payload", req.body);
+                }
+            },
+            POST: {
+                "/api/setCounter": {
                     isProtected: false,
-                    handler: (req)=>{
-                        Console.debug("DEBUG: req:", req);
-
+                    handler: async (req) => {
                         return HttpResponse({
                             message: "Incremented counter",
-                            value:0,
+                            value: req.body.counter.value++,
                             serverTime: new Date().toISOString()
                         }, MimeType.JSON);
                     }
@@ -87,9 +86,9 @@ Server.getInstance({
                     isProtected: false,
                     handler: () => HttpResponse({msg: "hello"}, MimeType.JSON)
                 },
-                "/api/stress/incremental":{
+                "/api/stress/incremental": {
                     isProtected: false,
-                    handler: (req)=>{
+                    handler: (req) => {
 
                         Console.debug("DEBUG: req.url", req.url);
 
@@ -122,9 +121,9 @@ Server.getInstance({
 
                     }
                 },
-                "/api/stress":{
+                "/api/stress": {
                     isProtected: false,
-                    handler: (req)=>{
+                    handler: (req) => {
                         Console.debug("DEBUG: req.url", req.url);
 
                         // Get parameters from query string with defaults
@@ -153,12 +152,16 @@ Server.getInstance({
                 "/": {
                     isProtected: false,
                     handler: () => {
-                        printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN+"."+process.env.DOMAIN, null, process.env.ENV);
+                        printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN + "." + process.env.DOMAIN, null, process.env.ENV);
 
-                        return HttpResponse({system:getSystemInfo()}, MimeType.JSON);
+                        return HttpResponse({system: getSystemInfo()}, MimeType.JSON);
                     }
                 }
+            },
+            default:{
+                handler: () => HttpResponse({msg: "hello"}, MimeType.JSON)
             }
+
         }
     })
 });

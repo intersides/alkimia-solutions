@@ -20,7 +20,8 @@
     "test-docker-build": "docker rm -f test-docker-backend && docker build -f Test.Dockerfile --target=backend --build-arg SERVICE=backend --build-arg ENV=production .",
     "test-docker-run": "docker run -d --name test-docker-backend -p 8080:3000 -e ENV=production -e PROTOCOL=https -e DOMAIN=alkimia.localhost -e SUBDOMAIN=server -v ./apps/backend:/app -v ./libs:/app/libs test-docker-backend tail -f /dev/null",
     "test-docker-build_run": "npm run test-docker-build && npm run test-docker-run",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "test-watch": "vitest --watch"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +33,7 @@
     "ws": "^8.18.1"
   },
   "devDependencies": {
-    "eslint": "^9.25.1"
+    "eslint": "^9.25.1",
+    "vitest": "^3.1.2"
   }
 }

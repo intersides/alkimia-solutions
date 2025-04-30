@@ -58,11 +58,19 @@ export default function Router(args){
     function _registerEvents(){
     }
 
+    async function _catchAll(request){
+        if (Object.hasOwn(routes, "*") && typeof routes["*"].handler === "function") {
+            return new Promise((resolve)=>{
+                Promise.resolve(routes["*"].handler(request)).finally(() => resolve());
+            });
+        }
+        return Promise.resolve();
+
+    }
+
     function _getHandler(_request){
         const path = _request.url.path;
         const method = _request.method.toUpperCase();
-        Console.info("request info ->", path, method);
-        Console.info("request routes ->", routes);
         if(
             utilities.isNotNullObject(routes) &&
             utilities.isNotNullObject(routes[method])
@@ -207,6 +215,7 @@ export default function Router(args){
     }
 
     instance.handleRequest = _handleRequest;
+    instance.catchAll = _catchAll;
 
     return _initialize();
 }
