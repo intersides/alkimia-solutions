@@ -1,6 +1,6 @@
 import Server from "@workspace/node/services/Server.js";
 import Router from "@workspace/node/services/Router.js";
-import { HttpResponse } from "@workspace/node/httpLib.js";
+import { HttpResponse } from "@workspace/node/ServerResponse.js";
 import {MimeType} from "@workspace/common/enums.js";
 
 let server = Server.getInstance({
@@ -10,7 +10,12 @@ let server = Server.getInstance({
             GET: {
                 "/": {
                     isProtected: false,
-                    handler: ()=>HttpResponse({msg:"hello"}, MimeType.JSON)
+                    handler: ()=>HttpResponse({
+                        payload:{
+                            msg:"hello"
+                        },
+                        mimeType: MimeType.JSON
+                    })
                 }
             }
         }

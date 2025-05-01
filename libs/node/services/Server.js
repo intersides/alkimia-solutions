@@ -23,38 +23,42 @@ export default function Server(_args){
         }
     });
 
-    function _requestHandler(_rawRequest, _response){
+    function _requestHandler(_rawRequest, _nodeResponseStream){
+
+        // Set timeout handler
+        _nodeResponseStream.on("timeout", () => {
+            Console.warn("The Node Response has timed out!");
+            if (!_nodeResponseStream.headersSent) {
+                _nodeResponseStream.writeHead(504);
+                _nodeResponseStream.end("Gateway Timeout");
+            }
+        });
 
         distillRequest(_rawRequest).then( async function(_request){
             // Console.debug("a received request has been distilled as:", _request);
 
             await router.catchAll(_request);
 
-            router.handleRequest(_request).then(function(_serverResponse){
+            router.handleRequest(_request).then(function(_httpServerResponse){
                 // Console.log("ServerResponse", _serverResponse);
 
-                if(_serverResponse){
-                    _response.writeHead(_serverResponse.status, Object.fromEntries(_serverResponse.headers.entries()));
-                    // Pipe the Node.js Readable stream to the HTTP response
-                    if(_serverResponse.body){
-                        const nodeStream = Readable.from(_serverResponse.body);
-                        nodeStream.pipe(_response);
-                    }
+                if(_httpServerResponse){
+                    _httpServerResponse.send(_nodeResponseStream);
                 }
                 else{
-                    _response.writeHead(404, {
+                    _nodeResponseStream.writeHead(404, {
                         "content-type": "text/plain"
                     });
-                    _response.end("Not found!");
+                    _nodeResponseStream.end("Not found!");
                 }
 
             }).catch(async function(httpError){
                 const body = await httpError.text();
-                _response.writeHead(httpError.status, {
+                _nodeResponseStream.writeHead(httpError.status, {
                     "Content-Length": Buffer.byteLength(body),
                     ...Object.fromEntries(httpError.headers.entries())
                 });
-                _response.end(body);
+                _nodeResponseStream.end(body);
             });
 
         });

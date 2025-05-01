@@ -3,7 +3,8 @@ import {utilities} from "@alkimia/lib";
 import fs from "fs";
 import {HttpErrorStatus, MimeType} from "@workspace/common/enums.js";
 import httpUtils from "@workspace/common/httpUtils.js";
-import {HttpError, HttpResponse} from "../httpLib.js";
+import {HttpError} from "../httpLib.js";
+import {HttpResponse} from "../ServerResponse.js";
 import Console from "@intersides/console";
 
 // import networkUtils from "../network-utils.js";
@@ -203,7 +204,10 @@ export default function Router(args){
                     }
                     Console.debug("MimeType of the requested file:", mimeType);
 
-                    const response = HttpResponse(data, mimeType);
+                    const response = HttpResponse({
+                        payload: data,
+                        mimeType
+                    });
                     resolve(response);
 
                 });

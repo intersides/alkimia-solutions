@@ -5,7 +5,6 @@ import path from "node:path";
 import {fileURLToPath} from "url";
 import Server from "@workspace/node/services/Server.js";
 import Router from "@workspace/node/services/Router.js";
-import {HttpResponse} from "@workspace/node/httpLib.js";
 import {MimeType} from "@workspace/common/enums.js";
 import Console from "@intersides/console";
 
@@ -73,18 +72,24 @@ Server.getInstance({
                 "/api/setCounter": {
                     isProtected: false,
                     handler: async (req) => {
-                        return HttpResponse({
-                            message: "Incremented counter",
-                            value: req.body.counter.value++,
-                            serverTime: new Date().toISOString()
-                        }, MimeType.JSON);
+                        return v2.HttpResponse({
+                            payload: {
+                                message: "Incremented counter",
+                                value: req.body.counter.value++,
+                                serverTime: new Date().toISOString()
+                            },
+                            mimeType: MimeType.JSON
+                        });
                     }
                 }
             },
             GET: {
                 "/hello": {
                     isProtected: false,
-                    handler: () => HttpResponse({msg: "hello"}, MimeType.JSON)
+                    handler: () => v2.HttpResponse({
+                        payload: {msg: "hello"},
+                        mimeType:MimeType.JSON
+                    })
                 },
                 "/api/stress/incremental": {
                     isProtected: false,
@@ -110,14 +115,17 @@ Server.getInstance({
                             }, (i - 1) * safeStepDuration);
                         }
 
-                        return HttpResponse({
-                            message: "Incremental CPU stress test started",
-                            steps: safeSteps,
-                            maxIntensity: safeMaxIntensity,
-                            stepDuration: safeStepDuration,
-                            totalDuration: safeSteps * safeStepDuration,
-                            serverTime: new Date().toISOString()
-                        }, MimeType.JSON);
+                        return v2.HttpResponse({
+                            payload:{
+                                message: "Incremental CPU stress test started",
+                                steps: safeSteps,
+                                maxIntensity: safeMaxIntensity,
+                                stepDuration: safeStepDuration,
+                                totalDuration: safeSteps * safeStepDuration,
+                                serverTime: new Date().toISOString()
+                            },
+                            mimeType: MimeType.JSON
+                        });
 
                     }
                 },
@@ -140,12 +148,15 @@ Server.getInstance({
                             createLoad(safeIntensity, safeDuration);
                         }, 0);
 
-                        return HttpResponse({
-                            message: "CPU stress test started",
-                            intensity: safeIntensity,
-                            duration: safeDuration,
-                            serverTime: new Date().toISOString()
-                        }, MimeType.JSON);
+                        return v2.HttpResponse({
+                            payload:{
+                                message: "CPU stress test started",
+                                intensity: safeIntensity,
+                                duration: safeDuration,
+                                serverTime: new Date().toISOString()
+                            },
+                            mimeType: MimeType.JSON
+                        });
 
                     }
                 },
@@ -154,12 +165,22 @@ Server.getInstance({
                     handler: () => {
                         printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN + "." + process.env.DOMAIN, null, process.env.ENV);
 
-                        return HttpResponse({system: getSystemInfo()}, MimeType.JSON);
+                        return v2.HttpResponse({
+                            payload: {
+                                system: getSystemInfo()
+                            },
+                            mimeType:MimeType.JSON
+                        } );
                     }
                 }
             },
             default:{
-                handler: () => HttpResponse({msg: "hello"}, MimeType.JSON)
+                handler: () => v2.HttpResponse({
+                    payload: {
+                        msg: "hello"
+                    },
+                    mimeType: MimeType.JSON
+                })
             }
 
         }

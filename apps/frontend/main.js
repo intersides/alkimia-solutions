@@ -1,6 +1,6 @@
 import Server from "@workspace/node/services/Server.js";
 import Router from "@workspace/node/services/Router.js";
-import {HttpResponse} from "@workspace/node/httpLib.js";
+import {HttpResponse} from "@workspace/node/ServerResponse.js";
 import {MimeType} from "@workspace/common/enums.js";
 import path from "node:path";
 const url = await import("url");
@@ -31,13 +31,17 @@ Server.getInstance({
             GET: {
                 "/hello": {
                     isProtected: false,
-                    handler: ()=>HttpResponse({msg:"hello"}, MimeType.JSON)
+                    handler: ()=>HttpResponse({
+                        payload: {msg:"hello"},
+                        mimeType: MimeType.JSON
+                    })
                 },
                 "/": {
                     isProtected: false,
                     handler: ()=>{
                         return HttpResponse(
-                            `
+                            {
+                                payload:`
                                     <!doctype html>
                                     <html lang="en">
                                         <head>
@@ -69,7 +73,8 @@ Server.getInstance({
                                                   </script>
                                             </body>
                                     </html>`,
-                            MimeType.HTML);
+                                mimeType: MimeType.HTML
+                            });
                     }
                 }
             }

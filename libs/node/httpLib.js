@@ -4,39 +4,6 @@ import Console from "@intersides/console";
 
 const MAX_PAYLOAD_SIZE = 1024 * 1024 * 3; //3MB
 
-/**
- *
- * @param body
- * @param {MimeType} mimeType
- * @return {*}
- * @constructor
- */
-export const HttpResponse = function(body, mimeType = MimeType.TEXT){
-    let payload = body;
-
-    switch(mimeType){
-        case MimeType.JSON:{
-            try{
-                payload = JSON.stringify(body, null, 4);
-            }
-            catch(e){
-                Console.error("failed to stringify body as ", body);
-            }
-        }
-            break;
-
-        default:{
-            Console.warn("mimeType default case triggered");
-        }
-
-    }
-
-    const response = new Response(payload, {header: null});
-    Console.log("about to extend the headers with mimetype", mimeType);
-    extendHeaders(response.headers, mimeType);
-    return response;
-};
-
 export function HttpError(errorMessage, errorCode){
 
     return new Response(JSON.stringify({error: errorMessage}), {

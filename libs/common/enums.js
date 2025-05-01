@@ -35,8 +35,8 @@ export const HttpResponseStatus = {
         value:"Accepted",
         meaning:"The request has been accepted for processing, but the processing has not been completed. The request might or might not be eventually acted upon, and may be disallowed when processing occurs."
     },
-    Http4040_No_Content:{
-        code:404,
+    Http204_No_Content:{
+        code:204,
         value:"No Content",
         meaning:"The server successfully processed the request, and is not returning any content."
     }
