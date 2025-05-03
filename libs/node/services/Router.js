@@ -1,14 +1,10 @@
 "use strict";
 import {utilities} from "@alkimia/lib";
 import fs from "fs";
-import {HttpErrorStatus, MimeType} from "@workspace/common/enums.js";
+import {MimeType} from "@workspace/common/enums.js";
 import httpUtils from "@workspace/common/httpUtils.js";
-import {HttpError} from "../httpLib.js";
-import {HttpResponse} from "../ServerResponse.js";
+import {HttpErrorNotFound, HttpResponse} from "../ServerResponse.js";
 import Console from "@intersides/console";
-
-// import networkUtils from "../network-utils.js";
-// import { HttpError, HttpErrorStatus } from "../../../shared-js/comm/Responses.js";
 
 /**
  * Represents a Router object.
@@ -112,7 +108,7 @@ export default function Router(args){
             else{
                 let urlPath = request.url.path.replace(/^\//, "");
 
-                Console.debug("WARN: urlPath:", urlPath);
+                Console.info("urlPath:", urlPath);
 
                 if(urlPath.startsWith("node_modules/")){
                     assetsDir = modulesDir;
@@ -127,8 +123,7 @@ export default function Router(args){
 
                 fs.readFile(staticFileTarget, (err, data) => {
                     if(err){
-                        Console.error("ERROR: handler not found... trying to look for a resource in \n\tstaticFileTarget:", staticFileTarget, "\n\tfileName:", urlPath);
-                        return reject(HttpError(HttpErrorStatus.Http404_Not_Found.value, HttpErrorStatus.Http404_Not_Found.code));
+                        return reject(HttpErrorNotFound());
                     }
 
                     let mimeType = MimeType.TEXT;

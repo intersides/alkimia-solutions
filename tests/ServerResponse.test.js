@@ -78,11 +78,11 @@ describe(HttpResponse.constructor.name, function(){
         });
 
         test("HttpResponse is initialised with a default null data property", function(){
-            expect(HttpResponse().data).toBe(null);
+            expect(JSON.parse(HttpResponse().data)).toBe(null);
         });
 
         test("HttpResponse is initialised with a default text mimetype property", function(){
-            expect(HttpResponse().mimeType).toBe(MimeType.TEXT);
+            expect(HttpResponse().mimeType).toBe(MimeType.JSON);
         });
 
     });
@@ -98,17 +98,18 @@ describe(HttpResponse.constructor.name, function(){
             });
 
             const httpResponse = HttpErrorNotFound({
-                data: "hello"
+                data: { message:"The resource couldn't be found"}
             });
             httpResponse.send(mockResponse);
-            expect(mockResponse.headers.get("content-type")).toContain("text/plain");
+            expect(mockResponse.headers.get("content-type")).toContain(MimeType.JSON);
             expect(mockResponse.statusCode).toBe(HttpErrorStatus.Http404_Not_Found.status);
             expect(mockResponse.statusText).toBe(HttpErrorStatus.Http404_Not_Found.statusText);
 
             return responsePromise.then(() => {
                 // Now the writtenData array should be populated
-                const responsetext = Buffer.concat(mockResponse.writtenData).toString();
-                expect(responsetext).toEqual("hello");
+                let responsetext = Buffer.concat(mockResponse.writtenData).toString();
+                let responseJson = JSON.parse(responsetext);
+                expect(responseJson.message).toEqual("The resource couldn't be found");
             });
 
         });
@@ -142,10 +143,11 @@ describe(HttpResponse.constructor.name, function(){
                 console.debug("DEBUG: mockResponse", mockResponse);
                 expect(mockResponse.statusCode).toBe(200);
                 expect(mockResponse.statusText).toBe("OK");
-                expect(mockResponse.headers.get("content-type")).toContain("text/plain");
-                const responseString = Buffer.concat(mockResponse.writtenData).toString();
+                expect(mockResponse.headers.get("content-type")).toContain(MimeType.JSON);
+                let responseString = Buffer.concat(mockResponse.writtenData).toString();
                 expect(typeof responseString).toBe("string");
-                expect(responseString).toBe("");
+                let jsonResponse = JSON.parse(responseString);
+                expect(jsonResponse).toBe(null);
             });
         });
 
@@ -182,15 +184,15 @@ describe(HttpResponse.constructor.name, function(){
             });
 
             const httpResponse = HttpResponse({
-                data: "hello"
+                data: {message:"hello"}
             });
             httpResponse.send(mockResponse);
-            expect(mockResponse.headers.get("content-type")).toContain("text/plain");
+            expect(mockResponse.headers.get("content-type")).toContain(MimeType.JSON);
 
             return responsePromise.then(() => {
                 // Now the writtenData array should be populated
                 const responsetext = Buffer.concat(mockResponse.writtenData).toString();
-                expect(responsetext).toEqual("hello");
+                expect(JSON.parse(responsetext)).toStrictEqual({message:"hello"});
             });
 
         });

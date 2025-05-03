@@ -40,15 +40,11 @@ export default function Server(_args){
             await router.catchAll(_request);
 
             router.handleRequest(_request).then(function(_httpServerResponse){
-
-                Console.log("_httpServerResponse:", _httpServerResponse);
-
+                // Console.log("_httpServerResponse:", _httpServerResponse);
                 if(_httpServerResponse){
                     _httpServerResponse.send(_nodeResponseStream);
                 }
                 else{
-
-
                     _nodeResponseStream.writeHead(404, {
                         "content-type": "text/plain"
                     });
@@ -57,12 +53,18 @@ export default function Server(_args){
 
             }).catch(async function(httpError){
                 console.error("ERROR: httpError", httpError);
-                const body = await httpError.text();
-                _nodeResponseStream.writeHead(httpError.status, {
-                    "Content-Length": Buffer.byteLength(body),
-                    ...Object.fromEntries(httpError.headers.entries())
-                });
-                _nodeResponseStream.end(body);
+                if(httpError.constructor ===  HttpResponse){
+                    httpError.send(_nodeResponseStream);
+                }
+                else{
+                    const errorBody = httpError.message || "Undefined Server error";
+                    _nodeResponseStream.writeHead(500, {
+                        "Content-Length": Buffer.byteLength(errorBody),
+                        ...Object.fromEntries(httpError.headers.entries())
+                    });
+                    _nodeResponseStream.end(errorBody);
+                }
+
             });
 
         });

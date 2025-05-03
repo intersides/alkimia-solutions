@@ -27,17 +27,18 @@ function HttpError(_params={
     data:null,
     mimeType:MimeType.TEXT
 }){
-    console.debug("DEBUG: 1 params->", _params);
-
     return HttpResponse(_params);
 }
 
-// https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
 export function HttpErrorNotFound(_params){
     let params = utilities.transfer(_params, {
         data:null,
-        mimeType:MimeType.TEXT
+        mimeType:MimeType.JSON
     });
+    if(!params.data){
+        params.data = {};
+    }
+    params.data.errorType = {...HttpErrorStatus.Http404_Not_Found};
     let instance = HttpError(params);
 
     function _init(){
@@ -53,7 +54,7 @@ export function HttpErrorNotFound(_params){
 }
 
 
-export function HttpResponse(_params={ data:null, mimeType:MimeType.TEXT } ) {
+export function HttpResponse(_params={ data:null, mimeType:MimeType.JSON } ) {
     let _parent = ServerResponse({ data: _params.data});
     let instance = Object.create(HttpResponse.prototype);
 
@@ -61,19 +62,13 @@ export function HttpResponse(_params={ data:null, mimeType:MimeType.TEXT } ) {
 
     instance.data = null;
 
-
     const {
         data,
         mimeType
     } = utilities.transfer(_params, {
         ..._parent,
-        mimeType:MimeType.TEXT
+        mimeType:MimeType.JSON
     }) ;
-
-    console.debug("DEBUG: 3 params->", {
-        data,
-        mimeType
-    });
 
     function _init(){
 
@@ -136,7 +131,7 @@ export function HttpResponse(_params={ data:null, mimeType:MimeType.TEXT } ) {
             nodeResponseStream.setHeader(key, value);
         });
         //Note: replace the original node http.ServerResponse.statusMessage with statusText
-        delete nodeResponseStream.statusMessage;
+        // delete nodeResponseStream.statusMessage;
         nodeResponseStream.statusText =  _webApiResponse.statusText;
         nodeResponseStream.writeHead(_webApiResponse.status);
 
