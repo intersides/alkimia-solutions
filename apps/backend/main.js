@@ -16,9 +16,6 @@ const __appRoot = path.resolve(__dirname, "./");
 globalThis.__projectRoot = __projectRoot;
 globalThis.__appRoot = __appRoot;
 
-Console.debug("DEBUG: PORT", process.env.PORT);
-Console.debug("DEBUG: PUBLIC_PORT", process.env.PUBLIC_PORT);
-Console.debug("DEBUG: PUBLIC_PORT", process.env.PUBLIC_PORT);
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_PORT = process.env.PUBLIC_PORT || PORT;
@@ -74,7 +71,7 @@ Server.getInstance({
                     isProtected: false,
                     handler: async (req) => {
                         return HttpResponse({
-                            payload: {
+                            data: {
                                 message: "Incremented counter",
                                 value: req.body.counter.value++,
                                 serverTime: new Date().toISOString()
@@ -88,7 +85,7 @@ Server.getInstance({
                 "/hello": {
                     isProtected: false,
                     handler: () => HttpResponse({
-                        payload: {msg: "hello"},
+                        data: {msg: "hello"},
                         mimeType:MimeType.JSON
                     })
                 },
@@ -117,7 +114,7 @@ Server.getInstance({
                         }
 
                         return HttpResponse({
-                            payload:{
+                            data:{
                                 message: "Incremental CPU stress test started",
                                 steps: safeSteps,
                                 maxIntensity: safeMaxIntensity,
@@ -150,7 +147,7 @@ Server.getInstance({
                         }, 0);
 
                         return HttpResponse({
-                            payload:{
+                            data:{
                                 message: "CPU stress test started",
                                 intensity: safeIntensity,
                                 duration: safeDuration,
@@ -167,7 +164,7 @@ Server.getInstance({
                         printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN + "." + process.env.DOMAIN, null, process.env.ENV);
 
                         return HttpResponse({
-                            payload: {
+                            data: {
                                 system: getSystemInfo()
                             },
                             mimeType:MimeType.JSON
@@ -177,7 +174,7 @@ Server.getInstance({
             },
             default:{
                 handler: () => HttpResponse({
-                    payload: {
+                    data: {
                         msg: "hello"
                     },
                     mimeType: MimeType.JSON

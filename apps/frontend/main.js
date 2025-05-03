@@ -32,7 +32,7 @@ Server.getInstance({
                 "/hello": {
                     isProtected: false,
                     handler: ()=>HttpResponse({
-                        payload: {msg:"hello"},
+                        data: {msg:"hello"},
                         mimeType: MimeType.JSON
                     })
                 },
@@ -41,7 +41,7 @@ Server.getInstance({
                     handler: ()=>{
                         return HttpResponse(
                             {
-                                payload:`
+                                data:`
                                     <!doctype html>
                                     <html lang="en">
                                         <head>

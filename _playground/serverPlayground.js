@@ -11,7 +11,7 @@ let server = Server.getInstance({
                 "/": {
                     isProtected: false,
                     handler: ()=>HttpResponse({
-                        payload:{
+                        data:{
                             msg:"hello"
                         },
                         mimeType: MimeType.JSON

@@ -205,7 +205,7 @@ export default function Router(args){
                     Console.debug("MimeType of the requested file:", mimeType);
 
                     const response = HttpResponse({
-                        payload: data,
+                        data: data,
                         mimeType
                     });
                     resolve(response);

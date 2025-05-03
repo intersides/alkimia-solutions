@@ -1,8 +1,8 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import http from "node:http";
 import {distillRequest} from "../httpLib.js";
-import {Readable} from "stream";
 import Console from "@intersides/console";
+import {HttpResponse} from "../ServerResponse.js";
 
 /**
  * @param {object} _args
@@ -47,6 +47,8 @@ export default function Server(_args){
                     _httpServerResponse.send(_nodeResponseStream);
                 }
                 else{
+
+
                     _nodeResponseStream.writeHead(404, {
                         "content-type": "text/plain"
                     });

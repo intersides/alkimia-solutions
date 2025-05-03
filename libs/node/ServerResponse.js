@@ -1,5 +1,5 @@
 import {utilities} from "@alkimia/lib";
-import {MimeType} from "@workspace/common/enums.js";
+import {HttpErrorStatus, HttpResponseStatus, MimeType} from "@workspace/common/enums.js";
 import Console from "@intersides/console";
 import {extendHeaders} from "./httpLib.js";
 import http from "node:http";
@@ -23,14 +23,44 @@ export function ServerResponse(_params={ data:null}){
     return instance;
 }
 
+function HttpError(_params={
+    data:null,
+    mimeType:MimeType.TEXT
+}){
+    console.debug("DEBUG: 1 params->", _params);
 
-export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
-    let _parent = ServerResponse({ data: _params.payload});
+    return HttpResponse(_params);
+}
+
+// https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
+export function HttpErrorNotFound(_params){
+    let params = utilities.transfer(_params, {
+        data:null,
+        mimeType:MimeType.TEXT
+    });
+    let instance = HttpError(params);
+
+    function _init(){
+        let response = new Response(instance?.data || "", {
+            ...HttpErrorStatus.Http404_Not_Found,
+            header: null
+        });
+        instance.setWebResponse(response, params.mimeType);
+        return instance;
+    }
+
+    return _init();
+}
+
+
+export function HttpResponse(_params={ data:null, mimeType:MimeType.TEXT } ) {
+    let _parent = ServerResponse({ data: _params.data});
     let instance = Object.create(HttpResponse.prototype);
 
     let _webApiResponse = null;
 
-    instance.payload = null;
+    instance.data = null;
+
 
     const {
         data,
@@ -40,15 +70,20 @@ export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
         mimeType:MimeType.TEXT
     }) ;
 
+    console.debug("DEBUG: 3 params->", {
+        data,
+        mimeType
+    });
+
     function _init(){
 
         instance.mimeType = mimeType;
-        instance.payload = data;
+        instance.data = data;
 
         switch(mimeType){
             case MimeType.JSON:{
                 try{
-                    instance.payload  = JSON.stringify(data, null, 4);
+                    instance.data  = JSON.stringify(data, null, 4);
                 }
                 catch(err){
                     Console.error(`${err.message} - failed to stringify data as:`, data);
@@ -61,11 +96,20 @@ export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
 
         }
 
-        _webApiResponse = new Response(instance.payload, {header: null});
-        extendHeaders(_webApiResponse.headers, mimeType);
+        let response = new Response(instance?.data || "", {
+            ...HttpResponseStatus.Http200_OK,
+            header: null
+        });
+
+        _setResponse(response, mimeType);
 
         return instance;
 
+    }
+
+    function _setResponse(_Response, _mimeType){
+        _webApiResponse = _Response;
+        extendHeaders(_webApiResponse.headers, _mimeType);
     }
 
     instance.is = function(_constructor){
@@ -91,6 +135,9 @@ export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
         Object.entries(headers).forEach(([key, value]) => {
             nodeResponseStream.setHeader(key, value);
         });
+        //Note: replace the original node http.ServerResponse.statusMessage with statusText
+        delete nodeResponseStream.statusMessage;
+        nodeResponseStream.statusText =  _webApiResponse.statusText;
         nodeResponseStream.writeHead(_webApiResponse.status);
 
         let readableStream = Readable.from(_webApiResponse.body);
@@ -103,12 +150,9 @@ export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
 
     };
 
+    instance.setWebResponse = _setResponse;
+
     return _init();
-}
-
-// https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
-export function HttpErrorNotFound(){
-
 }
 
 export function WebSocketResponse(_params={message:null}) {
