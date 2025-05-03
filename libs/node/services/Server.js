@@ -40,7 +40,8 @@ export default function Server(_args){
             await router.catchAll(_request);
 
             router.handleRequest(_request).then(function(_httpServerResponse){
-                // Console.log("ServerResponse", _serverResponse);
+
+                Console.log("_httpServerResponse:", _httpServerResponse);
 
                 if(_httpServerResponse){
                     _httpServerResponse.send(_nodeResponseStream);
@@ -53,6 +54,7 @@ export default function Server(_args){
                 }
 
             }).catch(async function(httpError){
+                console.error("ERROR: httpError", httpError);
                 const body = await httpError.text();
                 _nodeResponseStream.writeHead(httpError.status, {
                     "Content-Length": Buffer.byteLength(body),

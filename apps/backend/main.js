@@ -7,6 +7,7 @@ import Server from "@workspace/node/services/Server.js";
 import Router from "@workspace/node/services/Router.js";
 import {MimeType} from "@workspace/common/enums.js";
 import Console from "@intersides/console";
+import {HttpResponse} from "@workspace/node/ServerResponse.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const __projectRoot = path.resolve(__dirname, "../../");
@@ -72,7 +73,7 @@ Server.getInstance({
                 "/api/setCounter": {
                     isProtected: false,
                     handler: async (req) => {
-                        return v2.HttpResponse({
+                        return HttpResponse({
                             payload: {
                                 message: "Incremented counter",
                                 value: req.body.counter.value++,
@@ -86,7 +87,7 @@ Server.getInstance({
             GET: {
                 "/hello": {
                     isProtected: false,
-                    handler: () => v2.HttpResponse({
+                    handler: () => HttpResponse({
                         payload: {msg: "hello"},
                         mimeType:MimeType.JSON
                     })
@@ -115,7 +116,7 @@ Server.getInstance({
                             }, (i - 1) * safeStepDuration);
                         }
 
-                        return v2.HttpResponse({
+                        return HttpResponse({
                             payload:{
                                 message: "Incremental CPU stress test started",
                                 steps: safeSteps,
@@ -148,7 +149,7 @@ Server.getInstance({
                             createLoad(safeIntensity, safeDuration);
                         }, 0);
 
-                        return v2.HttpResponse({
+                        return HttpResponse({
                             payload:{
                                 message: "CPU stress test started",
                                 intensity: safeIntensity,
@@ -165,7 +166,7 @@ Server.getInstance({
                     handler: () => {
                         printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN + "." + process.env.DOMAIN, null, process.env.ENV);
 
-                        return v2.HttpResponse({
+                        return HttpResponse({
                             payload: {
                                 system: getSystemInfo()
                             },
@@ -175,7 +176,7 @@ Server.getInstance({
                 }
             },
             default:{
-                handler: () => v2.HttpResponse({
+                handler: () => HttpResponse({
                     payload: {
                         msg: "hello"
                     },

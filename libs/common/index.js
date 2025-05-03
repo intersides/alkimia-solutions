@@ -8,7 +8,7 @@ export function printServerInfo(protocol, address, port, env) {
 }
 
 /**
- * given an valid and properly formatted .env file return the json dictionary
+ * given a valid and properly formatted .env file return the json dictionary
  * @param _envFileConvent
  */
 export function parseEnvFile(_envFileConvent){

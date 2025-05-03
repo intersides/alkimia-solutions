@@ -6,7 +6,7 @@ import http from "node:http";
 import {Readable} from "stream";
 
 export function ServerResponse(_params={ data:null}){
-    const _this = Object.create(ServerResponse.prototype);
+    const instance = Object.create(ServerResponse.prototype);
 
     const {
         data
@@ -14,41 +14,41 @@ export function ServerResponse(_params={ data:null}){
         data:null
     }) ;
 
-    _this.is = function(_constructor){
-        return _this.constructor === _constructor;
+    instance.is = function(_constructor){
+        return instance.constructor === _constructor;
     };
 
-    _this.data = data;
+    instance.data = data;
 
-    return _this;
+    return instance;
 }
 
 
 export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
     let _parent = ServerResponse({ data: _params.payload});
-    let _this = Object.create(HttpResponse.prototype);
+    let instance = Object.create(HttpResponse.prototype);
 
     let _webApiResponse = null;
 
-    _this.payload = null;
+    instance.payload = null;
 
     const {
         data,
         mimeType
     } = utilities.transfer(_params, {
         ..._parent,
-        mimeType:null
+        mimeType:MimeType.TEXT
     }) ;
 
     function _init(){
 
-        _this.mimeType = mimeType;
-        _this.payload = data;
+        instance.mimeType = mimeType;
+        instance.payload = data;
 
         switch(mimeType){
             case MimeType.JSON:{
                 try{
-                    _this.payload  = JSON.stringify(data, null, 4);
+                    instance.payload  = JSON.stringify(data, null, 4);
                 }
                 catch(err){
                     Console.error(`${err.message} - failed to stringify data as:`, data);
@@ -61,22 +61,22 @@ export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
 
         }
 
-        _webApiResponse = new Response(data, {header: null});
+        _webApiResponse = new Response(instance.payload, {header: null});
         extendHeaders(_webApiResponse.headers, mimeType);
 
-        return _this;
+        return instance;
 
     }
 
-    _this.is = function(_constructor){
-        return _this.constructor === _constructor || _parent.is(_constructor);
+    instance.is = function(_constructor){
+        return instance.constructor === _constructor || _parent.is(_constructor);
     };
 
     /**
      *
      * @param {http.ServerResponse} nodeResponseStream
      */
-    _this.send = function(nodeResponseStream=null){
+    instance.send = function(nodeResponseStream=null){
         if(!nodeResponseStream || !(nodeResponseStream instanceof http.ServerResponse)){
             throw new Error("HttpResponse requires a node response stream");
         }
@@ -84,20 +84,23 @@ export function HttpResponse(_params={payload:null, mimeType:MimeType.TEXT}) {
             Console.warn("The Node Response has timed out!");
         }
 
+        // Log the final converted object
+        const headers = Object.fromEntries(_webApiResponse.headers.entries());
 
-        //set status code and transfer headers
-        nodeResponseStream.writeHead(_webApiResponse.status, Object.fromEntries(_webApiResponse.headers.entries()));
+        // Set each header individually before writeHead
+        Object.entries(headers).forEach(([key, value]) => {
+            nodeResponseStream.setHeader(key, value);
+        });
+        nodeResponseStream.writeHead(_webApiResponse.status);
 
         let readableStream = Readable.from(_webApiResponse.body);
 
         readableStream.pipe(nodeResponseStream, {end:false});
-        readableStream.on("end", function(){
-            //NOTE, explore the benefit of trailers such as:
-            // res.addTrailers({
-            //  'X-Content-Length': contentLength.toString()
-            // });
+
+        readableStream.on("end", () => {
             nodeResponseStream.end();
         });
+
     };
 
     return _init();
