@@ -5,15 +5,17 @@
   "type": "module",
   "workspaces": [
     "libs/*",
-    "apps/*"
+    "apps/*",
+    "stress-agent"
   ],
   "main": "index.js",
   "scripts": {
     "proxy-development": "ENV=development pm2 start ecosystem.config.cjs --no-daemon",
     "proxy-production": "ENV=production pm2 start ecosystem.config.cjs",
+    "docker-build-mosquito": "docker run -it -p 1883:1883 eclipse-mosquitto -t intersides-mqtt-broker",
     "docker-build-base": "docker build -f Dockerfile.base -t intersides-workspace-base .",
     "docker-build-backend": "docker build -f apps/backend/Dockerfile -t intersides-workspace-backend .",
-    "docker-debug-backend": " docker run -it --rm --entrypoint sh intersides-workspace-backend",
+    "docker-debug-backend": "docker run -it --rm --entrypoint sh intersides-workspace-backend",
     "docker-run-backend": " docker run -it --rm -p 8080:3000 -e ENV=development intersides-workspace-backend",
     "docker-build-frontend": "docker build -f apps/frontend/Dockerfile -t intersides-workspace-frontend .",
     "docker-run-frontend": " docker run -it --rm --entrypoint sh intersides-workspace-frontend",

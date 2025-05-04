@@ -1,0 +1,21 @@
+{
+  "name": "stress-agent",
+  "version": "1.0.0",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "development": "NODE_TLS_REJECT_UNAUTHORIZED=0 ENV=development pm2 start ecosystem.config.cjs --env development --no-daemon",
+    "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@alkimia/lib": "^1.0.9",
+    "@workspace/browser": "*",
+    "@workspace/common": "*",
+    "@workspace/node": "*",
+    "sass": "^1.86.3"
+  }
+}

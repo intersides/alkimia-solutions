@@ -75,7 +75,6 @@ const routingRules = [
     // }
 ];
 
-
 function proxyRequest(target, req, res){
     Console.log(`Routing to: ${target.host}:${target.port}`);
 
@@ -161,7 +160,6 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
 });
 
-
 const wss = new WebSocketServer({ server: httpsServer });
 wss.on("connection", (ws, req) => {
     Console.log("WebSocket connection established");
@@ -174,8 +172,39 @@ wss.on("connection", (ws, req) => {
     });
 });
 
+//spin up additional services and brokers such as MQTT Mosquito.
+Promise.all([
 
+    new Promise((resolve, reject)=>{
 
-httpsServer.listen(443, () => {
-    Console.log("HTTPS proxy server listening on port 443");
+        dockerService.checkContainerRunning("intersides-mqtt-broker").then((isRunning) => {
+            if(!isRunning){
+                dockerService.startMosquittoBroker();
+                dockerService.waitForContainerReady("intersides-mqtt-broker").then(() => {
+                    resolve("container intersides-mqtt-broker is now running");
+                }).catch(err => {
+                    Console.error(err.message);
+                    reject("failed waiting for intersides-mqtt-broker");
+                });
+            }
+            else{
+                resolve("service:intersides-mqtt-broker is already running");
+            }
+
+        }).catch(err => {
+            Console.error(err.message);
+            reject("failed to check if intersides-mqtt-broker is running");
+        });
+    })
+]).then(resolved=>{
+    Console.info(resolved);
+
+    httpsServer.listen(443, () => {
+        Console.log("HTTPS proxy server listening on port 443");
+    });
+
+}).catch(failures=>{
+    Console.error("Failed to start proxy, one or more services didn't start", failures);
 });
+
+

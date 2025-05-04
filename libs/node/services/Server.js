@@ -1,8 +1,9 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import http from "node:http";
-import {distillRequest} from "../httpLib.js";
+import {distillRequest, isWebSocketRequest} from "../httpLib.js";
 import Console from "@intersides/console";
 import {HttpResponse} from "../ServerResponse.js";
+import {WebSocketServer} from "ws";
 
 /**
  * @param {object} _args
@@ -24,6 +25,10 @@ export default function Server(_args){
     });
 
     function _requestHandler(_rawRequest, _nodeResponseStream){
+
+        if(isWebSocketRequest(_rawRequest)){
+            console.debug("DEBUG: WEBSOCKET REQUEST");
+        }
 
         // Set timeout handler
         _nodeResponseStream.on("timeout", () => {

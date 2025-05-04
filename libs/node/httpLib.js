@@ -190,7 +190,7 @@ function _retrieveRequestBody(_request){
     });
 }
 
-function isWebSocketRequest(request){
+export function isWebSocketRequest(request){
     const isUpgrade = request.headers["upgrade"] && request.headers["upgrade"].toLowerCase() === "websocket";
     const isConnectionUpgrade = request.headers["connection"] && request.headers["connection"].toLowerCase().includes("upgrade");
     const hasWebSocketKey = request.headers["sec-websocket-key"] !== undefined;

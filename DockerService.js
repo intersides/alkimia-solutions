@@ -4,6 +4,8 @@ import {exec, execSync} from "node:child_process";
 import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
+import Console from "@intersides/console";
+
 
 // Get the current file's directory name
 const __filename = fileURLToPath(import.meta.url);
@@ -30,18 +32,18 @@ export default function DockerService(_args = null){
 
     // Wait for the container to be ready
     function waitForContainerReady(containerName){
-        console.log(`Waiting for container ${containerName} to be ready...`);
+        Console.log(`Waiting for container ${containerName} to be ready...`);
 
         // Simple approach: wait a few seconds
         return new Promise(resolve => {
             setTimeout(() => {
                 checkContainerRunning(containerName).then(isRunning => {
                     if(isRunning){
-                        console.log(`Container ${containerName} is ready!`);
+                        Console.log(`Container ${containerName} is ready!`);
                         resolve();
                     }
                     else{
-                        console.error(`Container ${containerName} is not running`);
+                        Console.error(`Container ${containerName} is not running`);
                         throw new Error(`Container ${containerName} start timeout error`);
                     }
                 });
@@ -51,7 +53,6 @@ export default function DockerService(_args = null){
 
     // Check if the container is running
     function checkContainerRunning(containerName){
-
         return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`).then(output => output.includes("true")).catch(() => false);
     }
 
@@ -66,7 +67,7 @@ export default function DockerService(_args = null){
             const result = execSync(command, {encoding: "utf8"});
             return parseInt(result.trim()) > 0;
         } catch (error) {
-            console.error(`Error checking if container ${containerName} exists:`, error);
+            Console.error(`Error checking if container ${containerName} exists:`, error);
             return false;
         }
     }
@@ -82,14 +83,14 @@ export default function DockerService(_args = null){
             isRunning = execSync(`docker inspect -f '{{.State.Running}}' ${containerName}`, {encoding: "utf8"});
         }
         catch(e){
-            console.error(e.message);
+            Console.error(e.message);
         }
         return isRunning.trim().toLowerCase() === "true";
     }
 
     // Stop and remove a container
     function stopContainer(containerName){
-        console.log(`Stopping container ${containerName}...`);
+        Console.log(`Stopping container ${containerName}...`);
         execSync(`docker rm -f ${containerName} || true`, {stdio: "inherit"});
     }
 
@@ -98,7 +99,7 @@ export default function DockerService(_args = null){
 
             exec(command, (error, stdout, stderr) => {
                 if(error){
-                    console.error(`Error: ${stderr}`);
+                    Console.error(`Error: ${stderr}`);
                     reject(error);
                     return;
                 }
@@ -123,7 +124,7 @@ export default function DockerService(_args = null){
             return cpuPercent;
         }
         catch(error){
-            console.error(`Error getting CPU usage for ${containerName}:`, error);
+            Console.error(`Error getting CPU usage for ${containerName}:`, error);
             return -1; // Return -1 to indicate error
         }
     }
@@ -136,18 +137,18 @@ export default function DockerService(_args = null){
             1000, // Check every second
             60000, // Monitor for 60 seconds
             (reading) => {
-                console.log(`${containerName} CPU: ${reading.cpuPercent.toFixed(2)}%`);
+                Console.log(`${containerName} CPU: ${reading.cpuPercent.toFixed(2)}%`);
             }
         );
 
         // If you need to stop monitoring early
         setTimeout(() => {
             const readings = monitor.stop();
-            console.log("Monitoring stopped. Readings:", readings);
+            Console.log("Monitoring stopped. Readings:", readings);
 
             // Calculate average CPU usage
             const avgCpu = readings.reduce((sum, r) => sum + r.cpuPercent, 0) / readings.length;
-            console.log(`Average CPU usage: ${avgCpu.toFixed(2)}%`);
+            Console.log(`Average CPU usage: ${avgCpu.toFixed(2)}%`);
         }, 30000); // Stop after 30 seconds
     }
 
@@ -155,7 +156,7 @@ export default function DockerService(_args = null){
     async function checkCpu(){
         const containerName = "alkimia-frontend";
         const cpuPercent = await getContainerCpuUsage(containerName);
-        console.log(`Current CPU usage for ${containerName}: ${cpuPercent.toFixed(2)}%`);
+        Console.log(`Current CPU usage for ${containerName}: ${cpuPercent.toFixed(2)}%`);
     }
 
     /**
@@ -167,7 +168,7 @@ export default function DockerService(_args = null){
      * @returns {object} - Monitor control object with stop() method
      */
     function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback){
-        console.log(`Starting CPU monitoring for ${containerName}`);
+        Console.log(`Starting CPU monitoring for ${containerName}`);
 
         const startTime = Date.now();
         const monitorData = {
@@ -205,7 +206,7 @@ export default function DockerService(_args = null){
             if(durationMs > 0 && timestamp - startTime >= durationMs){
                 monitorData.isRunning = false;
                 clearInterval(intervalId);
-                console.log(`CPU monitoring for ${containerName} completed`);
+                Console.log(`CPU monitoring for ${containerName} completed`);
             }
         }, intervalMs);
 
@@ -214,7 +215,7 @@ export default function DockerService(_args = null){
             stop: () => {
                 monitorData.isRunning = false;
                 clearInterval(intervalId);
-                console.log(`CPU monitoring for ${containerName} stopped`);
+                Console.log(`CPU monitoring for ${containerName} stopped`);
                 return monitorData.readings;
             },
             getData: () => {
@@ -248,23 +249,23 @@ export default function DockerService(_args = null){
         forceRestart = false
     }){
 
-        console.debug("DEBUG: params", _args);
+        Console.debug("DEBUG: params", _args);
 
         if(!imageExists("intersides-workspace-base")){
             buildBaseImage();
         }
 
         let isRunningOrStopped = containerExists(name);
-        console.warn(name, "is running or stopped", isRunningOrStopped, "should force restart:", forceRestart);
+        Console.warn(name, "is running or stopped", isRunningOrStopped, "should force restart:", forceRestart);
         if(isRunningOrStopped && forceRestart){
             stopContainer(name);
         }
         else if(containerIsRunning(name)){
-            console.info(`container ${name} is already running`);
+            Console.info(`container ${name} is already running`);
             return;
         }
 
-        console.log("Starting container ...", __dirname);
+        Console.log("Starting container ...", __dirname);
 
         const buildCommand = `docker build \
           -f apps/${service}/Dockerfile \
@@ -300,7 +301,7 @@ export default function DockerService(_args = null){
           ${volumeFlags} \
           ${name}`;
 
-        console.debug("about to execute command", runCommand);
+        Console.debug("about to execute command", runCommand);
 
         execSync(runCommand, {
             stdio: "inherit"
@@ -324,6 +325,23 @@ export default function DockerService(_args = null){
     instance.startContainer = startContainer;
     instance.stopContainer = stopContainer;
     instance.checkContainerRunning = checkContainerRunning;
+
+    instance.startMosquittoBroker = function(){
+
+        let runCommand = `docker run -d --name intersides-mqtt-broker \
+                                 -p 1883:1883 \
+                                 -p 9001:9001 \
+                                 -v ${__dirname}/services/mqtt/config:/mosquitto/config \
+                                 -v mqtt_data:/mosquitto/data \
+                                 -v mqtt_log:/mosquitto/log \
+                                 eclipse-mosquitto:latest`;
+        execSync(runCommand, {
+            cwd: __dirname, // ensures Docker context is correct
+            stdio: "inherit" // streams output live to the console
+        });
+    };
+
+
     instance.on = (event, listener) => emitter.on(event, listener);
     // instance.once =  (event, listener) => emitter.once(event, listener);
     // instance.off =  (event, listener) => emitter.off(event, listener);
