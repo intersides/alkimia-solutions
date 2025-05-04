@@ -7,6 +7,7 @@ import DockerService from "./DockerService.js";
 import { WebSocketServer } from "ws";
 import {parseEnvFile} from "@workspace/common";
 import Console from "@intersides/console";
+import * as net from "node:net";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -60,6 +61,15 @@ const routingRules = [
             name: "backend",
             host: "localhost",
             port: 8080
+        }
+    },
+    {
+        // Route based on hostname
+        match: (req) => req.headers.host === "mqtt.alkimia.localhost",
+        target: {
+            name: "mqtt",
+            host: "localhost",
+            port: 9001
         }
     }
 
@@ -160,17 +170,64 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
 });
 
-const wss = new WebSocketServer({ server: httpsServer });
-wss.on("connection", (ws, req) => {
-    Console.log("WebSocket connection established");
+httpsServer.on("upgrade", (req, socket, head) => {
+    Console.log(`Upgrade request for ${req.headers.host}${req.url}`);
+    Console.log("REQ URL:", req.url);
+    Console.log("REQ HEADERS:", req.headers);
 
-    ws.on("error", Console.error);
+    const route = routingRules.find(rule => rule.match(req));
+    const target = route?.target;
 
-    ws.on("message", function message(data) {
-        Console.log("received: %s", data);
-        ws.send("hello from server");
+    Console.log("target:", target);
+
+    if (!target || !target.port || !target.host) {
+        Console.warn("No valid WS target. Falling back or rejecting.");
+        socket.destroy();
+        return;
+    }
+
+    const upstream = net.connect(target.port, target.host, () => {
+
+        // Proper HTTP upgrade framing
+        const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
+        const headers = Object.entries(req.headers)
+            .map(([key, val]) => `${key}: ${val}`)
+            .join("\r\n") + "\r\n\r\n";
+
+        upstream.write(requestLine + headers);
+        upstream.write(head);
+
+        socket.setNoDelay(true);
+        upstream.setNoDelay(true);
+
+        upstream.pipe(socket);
+        socket.pipe(upstream);
+    });
+
+    upstream.on("error", err => {
+        Console.error("WS Proxy Error:", err);
+        socket.destroy();
+    });
+
+    socket.on("error", err => {
+        Console.error("Client WS Error:", err);
+        upstream.destroy();
     });
 });
+
+
+// const wss = new WebSocketServer({ server: httpsServer });
+// wss.on("connection", (ws, req) => {
+//     Console.log("WebSocket connection established", req);
+//
+//     ws.on("error", Console.error);
+//
+//     ws.on("message", function message(data) {
+//         Console.log("received: %s", data);
+//         ws.send("hello from server");
+//     });
+//
+// });
 
 //spin up additional services and brokers such as MQTT Mosquito.
 Promise.all([

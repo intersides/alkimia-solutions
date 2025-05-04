@@ -86,6 +86,16 @@ export default function Server(_args){
                 Console.info(`http server running ${publicAddress}`);
             }
         });
+        const wss = new WebSocketServer({ server: instance.httpServer });
+        wss.on("connection", (ws, req) => {
+            Console.log("WebSocket connection established", req);
+            ws.on("error", Console.error);
+            ws.on("message", function message(data) {
+                Console.log("received: %s", data);
+                ws.send("hello from backend server");
+            });
+        });
+
         return instance;
     }
 

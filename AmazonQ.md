@@ -1,3 +1,10 @@
+# Intersides Workspace - README Update
+
+This document contains the updated README.md content for the Intersides Workspace project, based on the analysis of the project structure and code.
+
+## Updated README.md Content
+
+```markdown
 # Intersides Workspace
 
 A monorepo workspace for Intersides applications, built around the Alkimia framework. This workspace contains both frontend and backend services with a custom Node.js-based proxy for local development and production deployment, featuring intelligent lazy loading of Docker containers.
@@ -191,3 +198,4 @@ If you encounter issues with the Node.js proxy:
 2. Verify that the SSL certificates are correctly referenced in the proxy code
 3. Ensure Docker is running and accessible
 4. Check that the required ports are available
+```

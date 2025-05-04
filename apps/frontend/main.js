@@ -50,6 +50,7 @@ Server.getInstance({
                                             <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
                                             <link rel="stylesheet" href="index.css" >
                                             <link rel="icon" type="image/x-icon" href="favicon.ico">
+                                            <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
                                             <script type="module" src="main.js"></script>
                                             <title>Frontend App</title>
                                             </head>
@@ -68,7 +69,33 @@ Server.getInstance({
                                                 </script>
                                                 <script>
                                                     window.addEventListener('load', () => {
-                                                      console.log('Fully loaded including images, CSS, etc.');
+                                                        console.log('Fully loaded including images, CSS, etc.');
+                                                      
+                                                        const mqttClient = mqtt.connect('wss://mqtt.alkimia.localhost');
+
+                                                        mqttClient.on('connect', () => {
+                                                            console.log('[MQTT] Connected to broker');
+                                                        
+                                                            // Subscribe to a test topic
+                                                            mqttClient.subscribe('test/ping', (err) => {
+                                                                if (err) {
+                                                                    console.error('[MQTT] Subscribe error:', err.message);
+                                                                } else {
+                                                                    console.log('[MQTT] Subscribed to test/ping');
+                                                                }
+                                                            });
+                                                        
+                                                            // Publish a test message
+                                                            mqttClient.publish('test/ping', 'proxy is alive');
+                                                            
+                                                        });
+                                                        
+                                                        mqttClient.on('message', (topic, message) => {
+                                                            console.debug("message from mqtt", arguments);
+                                                        //     console.log(\`[MQTT] Message received on topic:\`, message.toString());
+                                                        });
+
+                                                      
                                                     });
                                                   </script>
                                             </body>
