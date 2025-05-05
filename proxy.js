@@ -8,6 +8,7 @@ import { WebSocketServer } from "ws";
 import {parseEnvFile} from "@workspace/common";
 import Console from "@intersides/console";
 import * as net from "node:net";
+import mqtt from "mqtt";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,9 @@ Console.log("environment variables:", envVars);
 let dockerService = DockerService.getInstance({
     envVars
 });
+
+let  mqttClient = null;
+
 
 // HTTPS proxy (port 443) with SSL termination
 const sslOptions = {
@@ -102,6 +106,12 @@ function proxyRequest(target, req, res){
 
         // Pipe the response data
         proxyRes.pipe(res);
+
+        if(mqttClient){
+            Console.debug("MQTT publishing on test/ping");
+            mqttClient.publish("test/ping", "hello from proxy");
+        }
+
     });
 
     // Forward the request body
@@ -169,6 +179,34 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     });
 
 });
+
+mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost/");
+mqttClient.on("connect", () => {
+    Console.log("[PROXY] MQTT connected");
+
+    mqttClient.subscribe("test/ping", (err) => {
+        if (err) {
+            console.error("[PROXY] MQTT Subscribe error:", err.message);
+        } else {
+            console.log("[PROXY] MQTT Subscribed to test/ping");
+        }
+    });
+
+    setInterval(()=>{
+        Console.debug("info: about to publish on test/ping channel from proxy");
+        mqttClient.publish("test/ping", "hello from proxy");
+    }, 3000);
+
+});
+
+mqttClient.on("message", (topic, message) => {
+    Console.log("[PROXY] MQTT message:", topic, message.toString());
+});
+mqttClient.on("error", (err) => {
+    Console.error("[PROXY] MQTT connection error", err);
+});
+
+
 
 httpsServer.on("upgrade", (req, socket, head) => {
     Console.log(`Upgrade request for ${req.headers.host}${req.url}`);

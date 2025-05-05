@@ -27,6 +27,7 @@ export default function DockerService(_args = null){
 
 
     function _init(){
+
         return instance;
     }
 
@@ -242,12 +243,29 @@ export default function DockerService(_args = null){
         });
     }
 
+    function networkExists(networkName) {
+        try {
+            const result = execSync(`docker network ls --filter name=^${networkName}$ --format '{{.Name}}'`, { encoding: "utf8" });
+            return result.trim() === networkName;
+        } catch (error) {
+            Console.error("Error checking network:", error);
+            return false;
+        }
+    }
+
     function startContainer({
         name,
         service,
         port,
         forceRestart = false
     }){
+
+        if (!networkExists("alkimia-net")) {
+            Console.log("Creating Docker network: alkimia-net");
+            execSync("docker network create alkimia-net", { stdio: "inherit" });
+        } else {
+            Console.log("Docker network alkimia-net already exists");
+        }
 
         Console.debug("DEBUG: params", _args);
 
@@ -291,6 +309,7 @@ export default function DockerService(_args = null){
 
         const runCommand = `docker run -d \
           --name ${name} \
+          --network alkimia-net \
           -p ${port}:${envVars.DOCKER_FILE_PORT} \
           -e ENV=${envVars.ENV} \
           -e PUBLIC_PORT=${port}\
@@ -329,6 +348,7 @@ export default function DockerService(_args = null){
     instance.startMosquittoBroker = function(){
 
         let runCommand = `docker run -d --name intersides-mqtt-broker \
+                                 --network alkimia-net \
                                  -p 1883:1883 \
                                  -p 9001:9001 \
                                  -v ${__dirname}/services/mqtt/config:/mosquitto/config \

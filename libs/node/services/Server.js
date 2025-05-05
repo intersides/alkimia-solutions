@@ -92,9 +92,11 @@ export default function Server(_args){
             ws.on("error", Console.error);
             ws.on("message", function message(data) {
                 Console.log("received: %s", data);
-                ws.send("hello from backend server");
+                ws.send(`hello from ${publicAddress} websocket server`);
             });
         });
+
+
 
         return instance;
     }

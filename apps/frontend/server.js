@@ -27,6 +27,9 @@ Server.getInstance({
         staticDir,
         sharedDir,
         modulesDir,
+        wsMessageHandlers:{
+
+        },
         routes: {
             GET: {
                 "/hello": {
@@ -79,20 +82,19 @@ Server.getInstance({
                                                             // Subscribe to a test topic
                                                             mqttClient.subscribe('test/ping', (err) => {
                                                                 if (err) {
-                                                                    console.error('[MQTT] Subscribe error:', err.message);
+                                                                    console.error('[FRONTEND] MQTT Subscribe error:', err.message);
                                                                 } else {
-                                                                    console.log('[MQTT] Subscribed to test/ping');
+                                                                    console.log('[FRONTEND] MQTT Subscribed to test/ping');
                                                                 }
                                                             });
                                                         
                                                             // Publish a test message
-                                                            mqttClient.publish('test/ping', 'proxy is alive');
+                                                            mqttClient.publish('test/ping', 'frontned is alive');
                                                             
                                                         });
                                                         
                                                         mqttClient.on('message', (topic, message) => {
-                                                            console.debug("message from mqtt", arguments);
-                                                        //     console.log(\`[MQTT] Message received on topic:\`, message.toString());
+                                                            console.debug("[FRONTEND] MQTT on message", topic, message.toString());
                                                         });
 
                                                       

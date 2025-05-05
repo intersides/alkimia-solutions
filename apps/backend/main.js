@@ -16,7 +16,6 @@ const __appRoot = path.resolve(__dirname, "./");
 globalThis.__projectRoot = __projectRoot;
 globalThis.__appRoot = __appRoot;
 
-
 const PORT = process.env.PORT || 3000;
 const PUBLIC_PORT = process.env.PUBLIC_PORT || PORT;
 const PROTOCOL = process.env.PROTOCOL || "https";

@@ -5,7 +5,7 @@ import {HttpResponse} from "@workspace/node/ServerResponse.js";
 const url = await import("url");
 import Console from "@intersides/console";
 
-Console.log("process.env:", process.env);
+// Console.log("process.env:", process.env);
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 const __appRoot = path.resolve(__dirname, "./");

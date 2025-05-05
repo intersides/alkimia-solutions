@@ -1,14 +1,30 @@
-FROM node:23-bullseye AS base
-WORKDIR /stress-agent
+# Use the base image that contains all libraries and dependencies
+FROM intersides-workspace-base AS base
 
-# Copy only what's needed to install deps
-COPY package*.json ./
+# Single Alpine stage for build and runtime
+FROM node:23-alpine
 
-# Install all workspace deps
+WORKDIR /app
+
+# Copy only what's needed from the base image
+COPY --from=base /repo/package.json /repo/package-lock.json ./
+COPY --from=base /repo/node_modules ./node_modules
+COPY --from=base /repo/libs/common ./libs/common
+COPY --from=base /repo/libs/browser ./libs/browser
+COPY --from=base /repo/libs/node ./libs/node
+
+# Copy backend app to root of /app
+COPY stress-agent .
+
+# Ensure workspace links are correct (if needed)
 RUN npm install
 
-# Install PM2 globally for better process management
-RUN npm install pm2 -g
+#if production...
+#RUN npm run development
 
-# Make sure the libraries are properly linked
-#RUN npm rebuild
+RUN echo "mode: $ENV"
+
+EXPOSE 3000
+
+# Run the backend
+CMD ["sh", "-c", "npm run development"]

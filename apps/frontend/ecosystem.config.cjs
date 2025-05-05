@@ -1,7 +1,7 @@
 module.exports = {
     apps: [{
         name: "frontend",
-        script: "./main.js",  // Your frontend server script
+        script: "./server.js",  // Your frontend server script
         watch: true,            // Enable file watching
         watch_delay: 1000,      // Delay between file change detection (ms)
         ignore_watch: [         // Files and patterns to ignore
