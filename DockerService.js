@@ -1,15 +1,7 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import {EventEmitter} from "node:events";
 import {exec, execSync} from "node:child_process";
-import fs from "node:fs";
-import path from "path";
-import {fileURLToPath} from "url";
 import Console from "@intersides/console";
-
-
-// Get the current file's directory name
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export default function DockerService(_args = null){
 
@@ -23,76 +15,9 @@ export default function DockerService(_args = null){
 
     const emitter = new EventEmitter();
 
-    // Load environment variables from .env file
-
-
     function _init(){
 
         return instance;
-    }
-
-    // Wait for the container to be ready
-    function waitForContainerReady(containerName){
-        Console.log(`Waiting for container ${containerName} to be ready...`);
-
-        // Simple approach: wait a few seconds
-        return new Promise(resolve => {
-            setTimeout(() => {
-                checkContainerRunning(containerName).then(isRunning => {
-                    if(isRunning){
-                        Console.log(`Container ${containerName} is ready!`);
-                        resolve();
-                    }
-                    else{
-                        Console.error(`Container ${containerName} is not running`);
-                        throw new Error(`Container ${containerName} start timeout error`);
-                    }
-                });
-            }, 3000); // Wait 3 seconds
-        });
-    }
-
-    // Check if the container is running
-    function checkContainerRunning(containerName){
-        return runCommand(`docker inspect -f '{{.State.Running}}' ${containerName}`).then(output => output.includes("true")).catch(() => false);
-    }
-
-    /**
-     * Check if a container exists (running or stopped)
-     * @param {string} containerName - Name of the container
-     * @returns {Promise<boolean>} - True if container exists
-     */
-    function containerExists(containerName) {
-        try {
-            const command = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
-            const result = execSync(command, {encoding: "utf8"});
-            return parseInt(result.trim()) > 0;
-        } catch (error) {
-            Console.error(`Error checking if container ${containerName} exists:`, error);
-            return false;
-        }
-    }
-
-    /**
-     *
-     * @param containerName
-     * @return {boolean}
-     */
-    function containerIsRunning(containerName){
-        let isRunning = "false";
-        try{
-            isRunning = execSync(`docker inspect -f '{{.State.Running}}' ${containerName}`, {encoding: "utf8"});
-        }
-        catch(e){
-            Console.error(e.message);
-        }
-        return isRunning.trim().toLowerCase() === "true";
-    }
-
-    // Stop and remove a container
-    function stopContainer(containerName){
-        Console.log(`Stopping container ${containerName}...`);
-        execSync(`docker rm -f ${containerName} || true`, {stdio: "inherit"});
     }
 
     function runCommand(command){
@@ -225,141 +150,8 @@ export default function DockerService(_args = null){
         };
     }
 
-    function imageExists(imageName){
-        const command = ` docker image inspect ${imageName} >/dev/null 2>&1 && echo "exists" || echo "not exists"`;
-        const exists = execSync(command, {encoding: "utf8"});
-        return exists.trim() === "exists";
-    }
-
-    function buildBaseImage(){
-        const buildCommand = "docker build \
-          -f Dockerfile.base \
-          -t intersides-workspace-base \
-          .";
-
-        execSync(buildCommand, {
-            cwd: __dirname, // ensures Docker context is correct
-            stdio: "inherit" // streams output live to the console
-        });
-    }
-
-    function networkExists(networkName) {
-        try {
-            const result = execSync(`docker network ls --filter name=^${networkName}$ --format '{{.Name}}'`, { encoding: "utf8" });
-            return result.trim() === networkName;
-        } catch (error) {
-            Console.error("Error checking network:", error);
-            return false;
-        }
-    }
-
-    function startContainer({
-        name,
-        service,
-        port,
-        forceRestart = false
-    }){
-
-        if (!networkExists("alkimia-net")) {
-            Console.log("Creating Docker network: alkimia-net");
-            execSync("docker network create alkimia-net", { stdio: "inherit" });
-        } else {
-            Console.log("Docker network alkimia-net already exists");
-        }
-
-        Console.debug("DEBUG: params", _args);
-
-        if(!imageExists("intersides-workspace-base")){
-            buildBaseImage();
-        }
-
-        let isRunningOrStopped = containerExists(name);
-        Console.warn(name, "is running or stopped", isRunningOrStopped, "should force restart:", forceRestart);
-        if(isRunningOrStopped && forceRestart){
-            stopContainer(name);
-        }
-        else if(containerIsRunning(name)){
-            Console.info(`container ${name} is already running`);
-            return;
-        }
-
-        Console.log("Starting container ...", __dirname);
-
-        const buildCommand = `docker build \
-          -f apps/${service}/Dockerfile \
-          -t ${name} \
-          --build-arg ENV=${envVars.ENV}\
-          .`;
-
-        execSync(buildCommand, {
-            cwd: __dirname, // ensures Docker context is correct
-            stdio: "inherit" // streams output live to the console
-        });
-
-        let volumeFlags = [
-            "-v /app/node_modules",
-            "-v /app/dist"
-        ];
-        if(envVars.ENV === "development"){
-            // const root = process.cwd();
-            volumeFlags.push(`-v ${__dirname}/apps/${service}:/app`);
-            volumeFlags.push(`-v ${__dirname}/libs:/app/libs`);
-        }
-        volumeFlags = volumeFlags.join(" ");
-
-        const runCommand = `docker run -d \
-          --name ${name} \
-          --network alkimia-net \
-          -p ${port}:${envVars.DOCKER_FILE_PORT} \
-          -e ENV=${envVars.ENV} \
-          -e PUBLIC_PORT=${port}\
-          -e PORT=${envVars.DOCKER_FILE_PORT}\
-          -e PROTOCOL=${envVars.PROTOCOL} \
-          -e DOMAIN=${envVars.DOMAIN}\
-          -e SUBDOMAIN=${service} \
-          ${volumeFlags} \
-          ${name}`;
-
-        Console.debug("about to execute command", runCommand);
-
-        execSync(runCommand, {
-            stdio: "inherit"
-        });
-
-        emitter.emit("container-started", {
-            name: name,
-            env: envVars.ENV,
-            domain: envVars.DOMAIN,
-            service: service,
-            port: port
-        });
-
-    }
-
-    instance.imageExists = imageExists;
-    instance.buildBaseImage = buildBaseImage;
     instance.monitorFor60Seconds = monitorFor60Seconds;
-    instance.containerIsRunning = containerIsRunning;
-    instance.waitForContainerReady = waitForContainerReady;
-    instance.startContainer = startContainer;
-    instance.stopContainer = stopContainer;
-    instance.checkContainerRunning = checkContainerRunning;
-
-    instance.startMosquittoBroker = function(){
-
-        let runCommand = `docker run -d --name intersides-mqtt-broker \
-                                 --network alkimia-net \
-                                 -p 1883:1883 \
-                                 -p 9001:9001 \
-                                 -v ${__dirname}/services/mqtt/config:/mosquitto/config \
-                                 -v mqtt_data:/mosquitto/data \
-                                 -v mqtt_log:/mosquitto/log \
-                                 eclipse-mosquitto:latest`;
-        execSync(runCommand, {
-            cwd: __dirname, // ensures Docker context is correct
-            stdio: "inherit" // streams output live to the console
-        });
-    };
+    instance.checkCpu = checkCpu;
 
 
     instance.on = (event, listener) => emitter.on(event, listener);

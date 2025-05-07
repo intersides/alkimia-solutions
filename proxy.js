@@ -3,12 +3,14 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
-import DockerService from "./DockerService.js";
-import { WebSocketServer } from "ws";
+// import DockerService from "./DockerService.js";
+import DockerManager from "./modules/DockerManager.js";
 import {parseEnvFile} from "@workspace/common";
 import Console from "@intersides/console";
+import { WebSocketServer } from "ws";
 import * as net from "node:net";
 import mqtt from "mqtt";
+import manifest from "./services-manifest.js";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,9 +24,57 @@ let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"})
 let envVars = parseEnvFile(envContent);
 Console.log("environment variables:", envVars);
 
-let dockerService = DockerService.getInstance({
+// let dockerService = DockerService.getInstance({
+//     envVars
+// });
+
+let dockerManager = DockerManager.getInstance({
     envVars
 });
+dockerManager.on("container-started", function(params){
+    Console.info(`onEvent Container ${params.name} has started`);
+});
+dockerManager.on("running", function(params){
+    Console.info(`onEvent Container ${params.name} running`);
+    if(params.name === "mqtt-alkimia-broker"){
+
+        mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost/");
+        mqttClient.on("connect", () => {
+            Console.debug("[PROXY] MQTT connected");
+
+            mqttClient.subscribe("test/ping", (err) => {
+                if (err) {
+                    console.error("[PROXY] MQTT Subscribe error:", err.message);
+                } else {
+                    console.log("[PROXY] MQTT Subscribed to test/ping");
+                }
+            });
+
+            setInterval(()=>{
+                Console.debug("info: about to publish on test/ping channel from proxy");
+                mqttClient.publish("test/ping", "hello from proxy");
+            }, 3000);
+
+        });
+
+        mqttClient.on("message", (topic, message) => {
+            Console.debug("[PROXY] MQTT message:", topic, message.toString());
+        });
+        mqttClient.on("error", (err) => {
+            Console.error("[PROXY] MQTT connection error", err);
+        });
+    }
+});
+dockerManager.on("stopped", function(params){
+    Console.warn(`onEvent Container ${params.name} stopped`);
+});
+dockerManager.on("error", function(params){
+    Console.error(`onEvent Container ${params.name} error`);
+});
+dockerManager.on("not_exists", function(params){
+    Console.error(`onEvent Container not_exists ${params.name}`);
+});
+
 
 let  mqttClient = null;
 
@@ -41,6 +91,7 @@ const routingRules = [
         // Route based on path
         match: (req) => req.url.startsWith("/api/"),
         target: {
+            type:"app",
             service: "alkimia-backend",
             name: "backend",
             host: "localhost",
@@ -51,6 +102,7 @@ const routingRules = [
         // Route based on hostname
         match: (req) => req.headers.host === "app.alkimia.localhost",
         target: {
+            type:"app",
             service: "alkimia-frontend",
             name: "frontend",
             host: "localhost",
@@ -61,6 +113,7 @@ const routingRules = [
         // Route based on hostname
         match: (req) => req.headers.host === "server.alkimia.localhost",
         target: {
+            type:"app",
             service: "alkimia-backend",
             name: "backend",
             host: "localhost",
@@ -71,6 +124,8 @@ const routingRules = [
         // Route based on hostname
         match: (req) => req.headers.host === "mqtt.alkimia.localhost",
         target: {
+            type:"service",
+            service: "mqtt-alkimia-broker",
             name: "mqtt",
             host: "localhost",
             port: 9001
@@ -149,62 +204,59 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
     Console.debug("target:", target);
 
-    dockerService.checkContainerRunning(target.service).then((isRunning) => {
+    dockerManager.checkContainerRunning(target.service).then((isRunning) => {
         Console.debug("service:", target.service, "is running:", isRunning);
         if(!isRunning){
-            dockerService.startContainer({
-                name:target.service,
-                service:target.name,
+            // Use the improved manageContainer method which handles all container states
+            dockerManager.manageContainer({
+                name: target.service,
+                service: target.name,
                 port: target.port
             });
 
-            dockerService.waitForContainerReady(target.service).then(() => {
+            dockerManager.waitForContainerReady(target.service).then(() => {
                 Console.debug(`container ${target.service} is now running`);
-
                 proxyRequest(target, req, res);
-
             }).catch(err => {
                 Console.error(err);
+
+                // NOTE: Handle error response to client
+                if (!res.headersSent) {
+                    res.writeHead(502);
+                    res.end("Bad Gateway - Container failed to start");
+                }
+
             });
+
+            // dockerService.waitForContainerReady(target.service).then(() => {
+            //     Console.debug(`container ${target.service} is now running`);
+            //
+            //     proxyRequest(target, req, res);
+            //
+            // }).catch(err => {
+            //     Console.error(err);
+            // });
 
         }
         else{
             Console.debug("forwarding request :", req.url, "to service:", target.service);
-
             proxyRequest(target, req, res);
         }
 
     }).catch(err => {
         Console.error(err);
-    });
-
-});
-
-mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost/");
-mqttClient.on("connect", () => {
-    Console.log("[PROXY] MQTT connected");
-
-    mqttClient.subscribe("test/ping", (err) => {
-        if (err) {
-            console.error("[PROXY] MQTT Subscribe error:", err.message);
-        } else {
-            console.log("[PROXY] MQTT Subscribed to test/ping");
+        // NOTE: Handle error response to client
+        if (!res.headersSent) {
+            res.writeHead(500);
+            res.end("Internal Server Error");
         }
     });
 
-    setInterval(()=>{
-        Console.debug("info: about to publish on test/ping channel from proxy");
-        mqttClient.publish("test/ping", "hello from proxy");
-    }, 3000);
+
 
 });
 
-mqttClient.on("message", (topic, message) => {
-    Console.log("[PROXY] MQTT message:", topic, message.toString());
-});
-mqttClient.on("error", (err) => {
-    Console.error("[PROXY] MQTT connection error", err);
-});
+
 
 
 
@@ -267,29 +319,39 @@ httpsServer.on("upgrade", (req, socket, head) => {
 //
 // });
 
+
+
 //spin up additional services and brokers such as MQTT Mosquito.
 Promise.all([
 
     new Promise((resolve, reject)=>{
 
-        dockerService.checkContainerRunning("intersides-mqtt-broker").then((isRunning) => {
-            if(!isRunning){
-                dockerService.startMosquittoBroker();
-                dockerService.waitForContainerReady("intersides-mqtt-broker").then(() => {
-                    resolve("container intersides-mqtt-broker is now running");
-                }).catch(err => {
-                    Console.error(err.message);
-                    reject("failed waiting for intersides-mqtt-broker");
-                });
+        let mqttBrokerName = "mqtt-alkimia-broker";
+
+        // Start or ensure MQTT broker is running
+        try{
+            const result = dockerManager.startMosquittoBroker(mqttBrokerName);
+            Console.debug(`MQTT broker operation result:${result}`);
+
+            if(result === "alredy_running"){
+                resolve(`Service: ${mqttBrokerName} is already running`);
             }
             else{
-                resolve("service:intersides-mqtt-broker is already running");
+                // For both "started_existing" and "created_new" cases, wait for readiness
+                dockerManager.waitForContainerReady(mqttBrokerName)
+                    .then(() => {
+                        resolve(`Container ${mqttBrokerName} is now running`);
+                    })
+                    .catch(err => {
+                        Console.error(err.message);
+                        reject(`Failed waiting for ${mqttBrokerName}`);
+                    });
             }
-
-        }).catch(err => {
+        }catch (err) {
             Console.error(err.message);
-            reject("failed to check if intersides-mqtt-broker is running");
-        });
+            reject(`Failed to start ${mqttBrokerName}: ${err.message}`);
+        }
+
     })
 ]).then(resolved=>{
     Console.info(resolved);

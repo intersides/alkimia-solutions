@@ -10,9 +10,9 @@
   ],
   "main": "index.js",
   "scripts": {
-    "proxy-development": "ENV=development pm2 start ecosystem.config.cjs --no-daemon",
-    "proxy-production": "ENV=production pm2 start ecosystem.config.cjs",
-    "docker-build-mosquito": "docker run -it -p 1883:1883 eclipse-mosquitto -t intersides-mqtt-broker",
+    "proxy-development": "ENV=development pm2 start proxy.js --watch --no-daemon",
+    "proxy-production": "ENV=production pm2 start proxy.js",
+    "docker-run-mosquitto": "docker run --name  mqtt-alkimia-broker -it -p 1883:1883 eclipse-mosquitto",
     "docker-build-base": "docker build -f Dockerfile.base -t intersides-workspace-base .",
     "docker-build-backend": "docker build -f apps/backend/Dockerfile -t intersides-workspace-backend .",
     "docker-debug-backend": "docker run -it --rm --entrypoint sh intersides-workspace-backend",
