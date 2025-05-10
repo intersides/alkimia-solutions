@@ -7,8 +7,7 @@
     "@alkimia/lib": "^1.0.9",
     "@workspace/browser": "*",
     "@workspace/common": "*",
-    "@workspace/node": "*",
-    "sass": "^1.86.3"
+    "@workspace/node": "*"
   },
   "scripts": {
     "create-app-module": "npx @alkimia/framework --srcDir=src/modules/",
@@ -21,7 +20,8 @@
   },
   "devDependencies": {
     "@alkimia/framework": "^0.1.0",
-    "esbuild": "0.24.2",
-    "pm2": "^6.0.5"
+    "esbuild": "^0.25.4",
+    "pm2": "^6.0.5",
+    "sass": "^1.87.0"
   }
 }

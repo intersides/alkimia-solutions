@@ -6,11 +6,13 @@
   "dependencies": {
     "@workspace/common": "*",
     "@workspace/node": "*",
-    "jose": "^6.0.10",
-    "pm2": "^6.0.5"
+    "jose": "^6.0.10"
   },
   "scripts": {
     "development": "ENV=development pm2-runtime start ecosystem.config.cjs --env development",
     "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production"
+  },
+  "devDependencies": {
+    "pm2": "^6.0.5"
   }
 }

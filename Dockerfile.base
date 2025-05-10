@@ -1,4 +1,4 @@
-FROM node:23-bullseye AS base
+FROM node:24.0.1-bullseye AS base
 WORKDIR /repo
 
 # Copy only what's needed to install deps

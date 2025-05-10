@@ -2,7 +2,7 @@
 FROM intersides-workspace-base AS base
 
 # Single Alpine stage for build and runtime
-FROM node:23-alpine
+FROM node:24.0.1-alpine
 ARG ENV
 
 WORKDIR /app
