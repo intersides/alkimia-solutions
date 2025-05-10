@@ -1,0 +1,14 @@
+# Exclude node_modules at the root level (we'll copy them from the base image)
+/node_modules
+
+# Exclude git and other development files
+.git
+.gitignore
+.idea
+.DS_Store
+
+# DO NOT exclude these important files
+!package.json
+!package-lock.json
+!libs/*/package.json
+!apps/*/package.json

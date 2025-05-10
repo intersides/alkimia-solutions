@@ -1,6 +1,6 @@
 
 export function sayHello(name) {
-    return `Hey! is this, ${name}!`;
+    return `Hey! is this, ${name}`;
 }
 
 export function printServerInfo(protocol, address, port, env) {

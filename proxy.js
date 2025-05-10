@@ -3,14 +3,15 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
-// import DockerService from "./DockerService.js";
-import DockerManager from "./modules/DockerManager.js";
+import DockerManager from "./DockerManager.js";
 import {parseEnvFile} from "@workspace/common";
 import Console from "@intersides/console";
 import { WebSocketServer } from "ws";
 import * as net from "node:net";
 import mqtt from "mqtt";
 import manifest from "./services-manifest.js";
+import ServiceDispatcher from "./modules/ServiceDispatcher.js";
+import {HttpErrorStatus} from "@workspace/common/enums.js";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,11 +25,14 @@ let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"})
 let envVars = parseEnvFile(envContent);
 Console.log("environment variables:", envVars);
 
-// let dockerService = DockerService.getInstance({
-//     envVars
-// });
+let serviceDispatcher = ServiceDispatcher({
+    manifest
+});
+
+let  mqttClient = null;
 
 let dockerManager = DockerManager.getInstance({
+    root:_projectRootPath,
     envVars
 });
 dockerManager.on("container-started", function(params){
@@ -50,10 +54,9 @@ dockerManager.on("running", function(params){
                 }
             });
 
-            setInterval(()=>{
-                Console.debug("info: about to publish on test/ping channel from proxy");
-                mqttClient.publish("test/ping", "hello from proxy");
-            }, 3000);
+            setTimeout(()=>{
+                mqttClient.publish("test/ping", "hello from proxy", {qos:2});
+            }, 5000);
 
         });
 
@@ -76,73 +79,11 @@ dockerManager.on("not_exists", function(params){
 });
 
 
-let  mqttClient = null;
-
-
 // HTTPS proxy (port 443) with SSL termination
 const sslOptions = {
     key,
     cert
 };
-
-// Define routing rules
-const routingRules = [
-    {
-        // Route based on path
-        match: (req) => req.url.startsWith("/api/"),
-        target: {
-            type:"app",
-            service: "alkimia-backend",
-            name: "backend",
-            host: "localhost",
-            port: 8080
-        }
-    },
-    {
-        // Route based on hostname
-        match: (req) => req.headers.host === "app.alkimia.localhost",
-        target: {
-            type:"app",
-            service: "alkimia-frontend",
-            name: "frontend",
-            host: "localhost",
-            port: 7070
-        }
-    },
-    {
-        // Route based on hostname
-        match: (req) => req.headers.host === "server.alkimia.localhost",
-        target: {
-            type:"app",
-            service: "alkimia-backend",
-            name: "backend",
-            host: "localhost",
-            port: 8080
-        }
-    },
-    {
-        // Route based on hostname
-        match: (req) => req.headers.host === "mqtt.alkimia.localhost",
-        target: {
-            type:"service",
-            service: "mqtt-alkimia-broker",
-            name: "mqtt",
-            host: "localhost",
-            port: 9001
-        }
-    }
-
-    // {
-    //     // Route based on HTTP method
-    //     match: (req) => req.method === 'POST',
-    //     target: { host: 'localhost', port: 7071 }
-    // },
-    // {
-    //     // Default route
-    //     match: () => true,
-    //     target: { host: 'localhost', port: 7070 }
-    // }
-];
 
 function proxyRequest(target, req, res){
     Console.log(`Routing to: ${target.host}:${target.port}`);
@@ -162,11 +103,6 @@ function proxyRequest(target, req, res){
         // Pipe the response data
         proxyRes.pipe(res);
 
-        if(mqttClient){
-            Console.debug("MQTT publishing on test/ping");
-            mqttClient.publish("test/ping", "hello from proxy");
-        }
-
     });
 
     // Forward the request body
@@ -176,8 +112,8 @@ function proxyRequest(target, req, res){
     proxyReq.on("error", (err) => {
         Console.error("Proxy request error:", err);
         if(!res.headersSent){
-            res.writeHead(502);
-            res.end("Bad Gateway");
+            res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+            res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
         }
         else{
             res.end();
@@ -190,119 +126,127 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     Console.log(`Received request: ${req.method} ${req.url}`);
     Console.log(`Host header: ${req.headers.host}`);
 
+    let requestHost = req.headers.host;
+
     // Determine the target server based on routing rules
-    const route = routingRules.find(rule => rule.match(req));
+    // const route = serviceDispatcher.routingRules.find(rule => rule.match(req));
+    const httpRoute = serviceDispatcher.httpRouting.find(rule => rule.match(req));
+    if(httpRoute){
 
-    console.debug("DEBUG: route->", route);
+        Console.debug("httpRoute:", httpRoute);
+        Console.debug("target:", httpRoute.target);
 
-    const target = route?.target || {
-        service: "alkimia-backend",
-        name: "backend",
-        host: "localhost",
-        port: 8080
-    };
 
-    Console.debug("target:", target);
+        dockerManager.checkContainerRunning(httpRoute.target.config.container_name).then((isRunning) => {
+            Console.debug("service:", httpRoute.target.config.container_name, "is running:", isRunning);
+            if(!isRunning){
 
-    dockerManager.checkContainerRunning(target.service).then((isRunning) => {
-        Console.debug("service:", target.service, "is running:", isRunning);
-        if(!isRunning){
-            // Use the improved manageContainer method which handles all container states
-            dockerManager.manageContainer({
-                name: target.service,
-                service: target.name,
-                port: target.port
-            });
+                Console.debug(`location: target.location:${httpRoute.target.location}`);
 
-            dockerManager.waitForContainerReady(target.service).then(() => {
-                Console.debug(`container ${target.service} is now running`);
-                proxyRequest(target, req, res);
-            }).catch(err => {
-                Console.error(err);
+                dockerManager.manageContainer({
+                    name: httpRoute.target.name,
+                    container_name: httpRoute.target.config.container_name,
+                    subdomain: httpRoute.target.config.subdomain,
+                    location: httpRoute.target.location,
+                    port: httpRoute.target.port,
+                    networkName:"alkimia-net",
+                    forceRestart:false
+                });
 
-                // NOTE: Handle error response to client
-                if (!res.headersSent) {
-                    res.writeHead(502);
-                    res.end("Bad Gateway - Container failed to start");
-                }
+                dockerManager.waitForContainerReady(httpRoute.target.config.container_name).then(() => {
+                    Console.debug(`container ${httpRoute.target.config.container_name} is now running`);
+                    proxyRequest(httpRoute.target, req, res);
+                }).catch(err => {
+                    Console.error(err);
 
-            });
+                    if (!res.headersSent) {
+                        res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+                        res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+                    }
 
-            // dockerService.waitForContainerReady(target.service).then(() => {
-            //     Console.debug(`container ${target.service} is now running`);
-            //
-            //     proxyRequest(target, req, res);
-            //
-            // }).catch(err => {
-            //     Console.error(err);
-            // });
+                });
 
-        }
-        else{
-            Console.debug("forwarding request :", req.url, "to service:", target.service);
-            proxyRequest(target, req, res);
-        }
+                // dockerService.waitForContainerReady(httpRoute.target.config.container_name).then(() => {
+                //     Console.debug(`container ${httpRoute.target.config.container_name} is now running`);
+                //
+                //     proxyRequest(target, req, res);
+                //
+                // }).catch(err => {
+                //     Console.error(err);
+                // });
 
-    }).catch(err => {
-        Console.error(err);
-        // NOTE: Handle error response to client
+            }
+            else{
+                Console.debug("forwarding request :", req.url, "to service:", httpRoute.target.config.container_name);
+                proxyRequest(httpRoute.target, req, res);
+            }
+
+        }).catch(err => {
+            Console.error(err);
+            // NOTE: Handle error response to client
+            if (!res.headersSent) {
+                res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
+                res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
+            }
+        });
+
+    }
+    else{
         if (!res.headersSent) {
-            res.writeHead(500);
-            res.end("Internal Server Error");
+            res.writeHead(HttpErrorStatus.Http404_Not_Found.status);
+            res.end(HttpErrorStatus.Http404_Not_Found.statusText);
         }
-    });
+    }
 
 
 
 });
-
-
-
-
 
 httpsServer.on("upgrade", (req, socket, head) => {
     Console.log(`Upgrade request for ${req.headers.host}${req.url}`);
     Console.log("REQ URL:", req.url);
     Console.log("REQ HEADERS:", req.headers);
 
-    const route = routingRules.find(rule => rule.match(req));
-    const target = route?.target;
+    const wsRoute = serviceDispatcher.wssRouting.find(rule => rule.match(req));
+    if(wsRoute){
+        Console.log("wsRoute:", wsRoute);
 
-    Console.log("target:", target);
+        const upstream = net.connect(wsRoute.target.port, wsRoute.target.host, () => {
 
-    if (!target || !target.port || !target.host) {
+            // Proper HTTP upgrade framing
+            const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
+            const headers = Object.entries(req.headers)
+                .map(([key, val]) => `${key}: ${val}`)
+                .join("\r\n") + "\r\n\r\n";
+
+            upstream.write(requestLine + headers);
+            upstream.write(head);
+
+            socket.setNoDelay(true);
+            upstream.setNoDelay(true);
+
+            upstream.pipe(socket);
+            socket.pipe(upstream);
+        });
+
+        upstream.on("error", err => {
+            Console.error("WS Proxy Error:", err);
+            socket.destroy();
+        });
+
+        socket.on("error", err => {
+            Console.error("Client WS Error:", err);
+            upstream.destroy();
+        });
+
+    }
+    else{
         Console.warn("No valid WS target. Falling back or rejecting.");
         socket.destroy();
-        return;
     }
+    // const target = route?.target;
 
-    const upstream = net.connect(target.port, target.host, () => {
 
-        // Proper HTTP upgrade framing
-        const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
-        const headers = Object.entries(req.headers)
-            .map(([key, val]) => `${key}: ${val}`)
-            .join("\r\n") + "\r\n\r\n";
-
-        upstream.write(requestLine + headers);
-        upstream.write(head);
-
-        socket.setNoDelay(true);
-        upstream.setNoDelay(true);
-
-        upstream.pipe(socket);
-        socket.pipe(upstream);
-    });
-
-    upstream.on("error", err => {
-        Console.error("WS Proxy Error:", err);
-        socket.destroy();
-    });
-
-    socket.on("error", err => {
-        Console.error("Client WS Error:", err);
-        upstream.destroy();
-    });
 });
 
 

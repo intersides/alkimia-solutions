@@ -26,5 +26,5 @@ RUN echo "mode: $ENV"
 
 EXPOSE 3000
 
-# Run the backend
+# Run the frontend
 CMD ["sh", "-c", "npm run development"]

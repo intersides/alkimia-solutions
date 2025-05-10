@@ -11,6 +11,7 @@ module.exports = {
             "package-lock.json",
             ".git",
             ".gitignore",
+            "modules/services/mqtt/config",
             "*.md"
         ],
         watch_options: {

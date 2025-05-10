@@ -72,5 +72,10 @@ export const HttpErrorStatus = {
         status:501,
         statusText:"Not Implemented",
         meaning:"The server either does not recognize the request method, or it lacks the ability to fulfil the request. Usually this implies future availability (e.g., a new feature of a web-service API)."
+    },
+    Http502_Bad_Gateway:{
+        status:502,
+        statusText:"Bad Gateway",
+        meaning:"The server, while acting as a gateway or proxy, received an invalid response from an upstream server it accessed to fulfill the request."
     }
 };

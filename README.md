@@ -29,7 +29,7 @@ intersides-workspace/
 ├── services/          # Additional service definitions
 ├── stress-agent/      # Performance testing tools
 ├── tests/             # Test suite
-├── DockerService.js   # Docker container management service for lazy loading
+├── DockerManager.js   # Docker container management service for lazy loading
 ├── proxy.js           # Custom Node.js HTTPS proxy with lazy container startup
 ├── ecosystem.config.cjs # PM2 process manager configuration
 ├── Dockerfile.base    # Base Docker image configuration
@@ -50,7 +50,7 @@ The project includes a sophisticated Node.js proxy (`proxy.js`) that:
 
 ### Docker Integration
 
-The `DockerService.js` module provides:
+The `DockerManager.js` module provides:
 
 1. On-demand container management
 2. Automatic building and starting of containers when services are requested

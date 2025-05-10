@@ -102,7 +102,7 @@ export default function App(args){
         $list = instance.element.view.querySelector("ul");
         $listItemTemplate = instance.element.view.querySelector(".list_item_template");
 
-        $h2.textContent = sayHello("Vite My App!");
+        $h2.textContent = sayHello("My ES6 App!");
 
         [counter, setCounter] = new ElementState({
             element: $counter,

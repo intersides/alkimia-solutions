@@ -1,18 +1,18 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import {EventEmitter} from "node:events";
 import {exec, execSync} from "node:child_process";
-import fs from "node:fs";
-import path from "path";
-import {fileURLToPath} from "url";
+import path from "node:path";
 import Console from "@intersides/console";
+import fs from "node:fs";
 
 // Get the current file's directory name
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export default function DockerManager(_args = null) {
     const instance = Object.create(DockerManager.prototype);
-    const {envVars} = Utilities.transfer(_args, {envVars: null});
+    const {root, envVars} = Utilities.transfer(_args, {
+        root:null,
+        envVars: null
+    });
     const emitter = new EventEmitter();
 
     function _init() {
@@ -26,7 +26,7 @@ export default function DockerManager(_args = null) {
      */
     function getContainerStatus(containerName) {
         try {
-            // Check if container exists
+            // Check if the container exists
             const existsCommand = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
             const existsResult = execSync(existsCommand, {encoding: "utf8"});
 
@@ -95,41 +95,26 @@ export default function DockerManager(_args = null) {
         execSync(`docker rm -f ${containerName} || true`, {stdio: "inherit"});
     }
 
-    /**
-     * Build Docker image
-     * @param {Object} options - Build options
-     * @param {string} options.dockerfile - Path to Dockerfile
-     * @param {string} options.imageName - Name for the built image
-     * @param {string} [options.buildContext="."] - Build context
-     * @param {Object} [options.buildArgs={}] - Build arguments
-     * @returns {boolean} - True if build succeeded
-     */
-    function buildImage(options) {
-        const {dockerfile, imageName, buildContext = ".", buildArgs = {}} = options;
-
-        let buildArgsString = "";
-        for (const [key, value] of Object.entries(buildArgs)) {
-            buildArgsString += ` --build-arg ${key}=${value}`;
-        }
-
-        const buildCommand = `docker build -f ${dockerfile} -t ${imageName} ${buildArgsString} ${buildContext}`;
-
-        execSync(buildCommand, {
-            stdio: "inherit"
-        });
-
-        return true;
-    }
 
     /**
      * Build base image for the workspace
      */
     function buildBaseImage() {
-        buildImage({
-            dockerfile: "Dockerfile.base",
-            imageName: "intersides-workspace-base",
-            buildContext: "."
+        Console.debug(`Building base image with context: ${root}`);
+
+        // Use explicit absolute paths
+        const dockerfilePath = path.resolve(root, "Dockerfile.base");
+
+        const buildCommand = `docker build -f ${dockerfilePath} -t intersides-workspace-base ${root}`;
+
+        Console.debug(`Executing: ${buildCommand}`);
+
+        execSync(buildCommand, {
+            cwd: root,
+            stdio: "inherit"
         });
+
+        return true;
     }
 
     /**
@@ -189,13 +174,19 @@ export default function DockerManager(_args = null) {
     function manageContainer(options) {
         const {
             name,
-            service,
+            container_name,
+            subdomain,
+            location,
             port,
-            forceRestart = false,
-            networkName = "alkimia-net"
+            networkName = "alkimia-net",
+            forceRestart = false
         } = options;
 
-        // Ensure network exists
+        Console.debug("DEBUG: location", location);
+        Console.debug("DEBUG: root", root);
+
+
+        // Ensure the network exists
         ensureNetworkExists(networkName);
 
         // Ensure base image exists
@@ -225,32 +216,46 @@ export default function DockerManager(_args = null) {
             }
         }
 
-        // Build the image
-        const buildCommand = `docker build \
-          -f apps/${service}/Dockerfile \
-          -t ${name} \
-          --build-arg ENV=${envVars.ENV}\
-          .`;
+        // Build the image - Use absolute paths and set the working directory to root
+        const dockerfilePath = path.resolve(root, location, "Dockerfile");
+        Console.debug(`Building image with Dockerfile at: ${dockerfilePath}`);
+        Console.debug(`Build context: ${root}`);
+        Console.debug(`Current working directory: ${process.cwd()}`);
 
-        execSync(buildCommand, {
-            cwd: __dirname,
-            stdio: "inherit"
-        });
+        // Check if files exist
+        const packageJsonPath = path.resolve(root, "package.json");
+        Console.debug(`package.json exists: ${fs.existsSync(packageJsonPath)}`);
+
+        const buildCommand = `docker build \
+          -f ${dockerfilePath} \
+          -t ${container_name} \
+          --build-arg ENV=${envVars.ENV}\
+          ${root}`;
+
+        try {
+            execSync(buildCommand, {
+                cwd: root,
+                stdio: "inherit"
+            });
+        } catch (error) {
+            Console.error(`Build failed: ${error.message}`);
+            throw error;
+        }
+
 
         // Prepare volume mounts
         let volumeFlags = [
-            "-v /app/node_modules",
-            "-v /app/dist"
+            "-v /app/node_modules"
         ];
         if (envVars.ENV === "development") {
-            volumeFlags.push(`-v ${__dirname}/apps/${service}:/app`);
-            volumeFlags.push(`-v ${__dirname}/libs:/app/libs`);
+            volumeFlags.push(`-v ${root}/${location}:/app`);
+            volumeFlags.push(`-v ${root}/libs:/app/libs`);
         }
         volumeFlags = volumeFlags.join(" ");
 
         // Run the container
         const runCommand = `docker run -d \
-          --name ${name} \
+          --name ${container_name} \
           --network ${networkName} \
           -p ${port}:${envVars.DOCKER_FILE_PORT} \
           -e ENV=${envVars.ENV} \
@@ -258,9 +263,9 @@ export default function DockerManager(_args = null) {
           -e PORT=${envVars.DOCKER_FILE_PORT}\
           -e PROTOCOL=${envVars.PROTOCOL} \
           -e DOMAIN=${envVars.DOMAIN}\
-          -e SUBDOMAIN=${service} \
+          -e SUBDOMAIN=${subdomain} \
           ${volumeFlags} \
-          ${name}`;
+          ${container_name}`;
 
         Console.debug("About to execute command", runCommand);
 
@@ -272,7 +277,6 @@ export default function DockerManager(_args = null) {
             name: name,
             env: envVars.ENV,
             domain: envVars.DOMAIN,
-            service: service,
             port: port
         });
 
@@ -281,40 +285,44 @@ export default function DockerManager(_args = null) {
 
     /**
      * Start or restart MQTT broker container
-     * @param {string} [brokerName="mqtt-alkimia-broker"] - Name for the broker container
+     * @param {string} [_brokerName="mqtt-alkimia-broker"] - Name for the broker container
      * @returns {string} - Result of operation
      */
-    function startMosquittoBroker(brokerName = "mqtt-alkimia-broker") {
+    function startMosquittoBroker(_brokerName = "mqtt-alkimia-broker") {
         const networkName = "alkimia-net";
 
-        // Ensure network exists
+        // Ensure the network exists
         ensureNetworkExists(networkName);
 
         // Check container status
-        const containerStatus = getContainerStatus(brokerName);
-        Console.debug(`MQTT broker ${brokerName} status: ${containerStatus}`);
+        const containerStatus = getContainerStatus(_brokerName);
+        Console.debug(`MQTT broker ${_brokerName} status: ${containerStatus}`);
 
         if (containerStatus === "running") {
-            Console.info(`MQTT broker ${brokerName} is already running`);
+            Console.info(`MQTT broker ${_brokerName} is already running`);
             return "already_running";
         } else if (containerStatus === "stopped") {
-            Console.info(`Starting existing MQTT broker ${brokerName}`);
-            execSync(`docker start ${brokerName}`, {stdio: "inherit"});
+            Console.info(`Starting existing MQTT broker ${_brokerName}`);
+            execSync(`docker start ${_brokerName}`, {stdio: "inherit"});
             return "started_existing";
         }
 
-        // Create new container
-        const runCommand = `docker run -d --name ${brokerName} \
+        // Create a new container - Use absolute paths
+        const configPath = path.resolve(root, "services/mqtt/config");
+
+        const runCommand = `docker run -d --name ${_brokerName} \
                              --network ${networkName} \
                              -p 1883:1883 \
                              -p 9001:9001 \
-                             -v ${__dirname}/services/mqtt/config:/mosquitto/config \
+                             -v ${configPath}:/mosquitto/config \
                              -v mqtt_data:/mosquitto/data \
                              -v mqtt_log:/mosquitto/log \
                              eclipse-mosquitto:latest`;
 
+        Console.debug("about to exec runCommand for mqtt broker with",runCommand);
+
         execSync(runCommand, {
-            cwd: __dirname,
+            cwd: root,
             stdio: "inherit"
         });
 
