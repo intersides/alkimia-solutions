@@ -69,14 +69,12 @@ Server.getInstance({
 
                         runStressTestOnBackend().then(result=>{
                             Console.debug("result" ,result);
-                            return HttpResponse({
-                                data: { msg: "should stress a service" }
-                            });
                         }).catch(error=>{
                             Console.error(error.message);
-                            return HttpErrorGeneric({
-                                data: { msg: error.message }
-                            });
+                        });
+
+                        return HttpResponse({
+                            data: { msg: "should stress the backend" }
                         });
 
 
@@ -87,14 +85,12 @@ Server.getInstance({
 
                         runStressIncrementalTestOnBackend().then(result=>{
                             Console.debug("result" ,result);
-                            return HttpResponse({
-                                data: { msg: "should stress a service" }
-                            });
                         }).catch(error=>{
                             Console.error(error.message);
-                            return HttpErrorGeneric({
-                                data: { msg: error.message }
-                            });
+                        });
+
+                        return HttpResponse({
+                            data: { msg: "should stress the backend incrementally" }
                         });
 
 
