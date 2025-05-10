@@ -126,10 +126,7 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     Console.log(`Received request: ${req.method} ${req.url}`);
     Console.log(`Host header: ${req.headers.host}`);
 
-    let requestHost = req.headers.host;
-
     // Determine the target server based on routing rules
-    // const route = serviceDispatcher.routingRules.find(rule => rule.match(req));
     const httpRoute = serviceDispatcher.httpRouting.find(rule => rule.match(req));
     if(httpRoute){
 
