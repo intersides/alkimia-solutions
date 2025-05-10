@@ -39,6 +39,7 @@ export default function DockerManager(_args = null) {
             const runningResult = execSync(runningCommand, {encoding: "utf8"});
 
             return runningResult.trim().toLowerCase() === "true" ? "running" : "stopped";
+
         } catch (error) {
             Console.error(`Error checking container status for ${containerName}:`, error);
             return "error";
@@ -257,6 +258,8 @@ export default function DockerManager(_args = null) {
         const runCommand = `docker run -d \
           --name ${container_name} \
           --network ${networkName} \
+          --cpus=1 \
+          --memory=512m \
           -p ${port}:${envVars.DOCKER_FILE_PORT} \
           -e ENV=${envVars.ENV} \
           -e PUBLIC_PORT=${port}\
@@ -343,7 +346,18 @@ export default function DockerManager(_args = null) {
 
     // For backward compatibility
     instance.checkContainerRunning = async (containerName) => {
-        return getContainerStatus(containerName) === "running";
+
+        let status = getContainerStatus(containerName);
+
+        emitter.emit(status, {
+            name: containerName,
+            env: envVars.ENV,
+            domain: envVars.DOMAIN
+        });
+
+        return status === "running";
+
+
     };
 
     // Event handling

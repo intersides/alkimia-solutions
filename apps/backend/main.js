@@ -29,28 +29,58 @@ const appInstanceId = cryptoService.generateRandomBytes();
 const staticDir = `${globalThis.__appRoot}/static`;
 
 // Function to create CPU load
-function createLoad(intensity, duration){
+async function createLoad(targetIntensity, duration) {
     const start = Date.now();
-    Console.log(`Starting CPU stress test: intensity=${intensity}, duration=${duration}ms`);
+    Console.log(`Starting CPU stress test with smooth ramp-up: target=${targetIntensity}%, duration=${duration}ms`);
 
-    // Create CPU load by performing calculations
-    while(Date.now() - start < duration){
-        // The higher the intensity, the more calculations we do in each iteration
-        for(let i = 0; i < intensity * 1000; i++){
+    // Calculate ramp-up time (e.g., 1/3 of total duration)
+    const rampUpTime = Math.min(duration / 3, 10000); // Max 10 seconds for ramp-up
+    const cycleTime = 100; // Total cycle time in ms
+
+    while (Date.now() - start < duration) {
+        // Calculate current intensity based on elapsed time
+        const elapsed = Date.now() - start;
+        let currentIntensity;
+
+        if (elapsed < rampUpTime) {
+            // During ramp-up phase, gradually increase intensity
+            currentIntensity = (elapsed / rampUpTime) * targetIntensity;
+        } else {
+            // After ramp-up, maintain target intensity
+            currentIntensity = targetIntensity;
+        }
+
+        // Calculate work and sleep time for this cycle
+        const workTime = Math.floor(cycleTime * (currentIntensity / 100));
+        const sleepTime = cycleTime - workTime;
+
+        // Work phase - use CPU intensively
+        const workEnd = Date.now() + workTime;
+        while (Date.now() < workEnd) {
+            // CPU-intensive calculations
             Math.sqrt(Math.random() * 10000);
             Math.sin(Math.random() * 10000);
-            Math.cos(Math.random() * 10000);
-            Math.tan(Math.random() * 10000);
+        }
+
+        // Sleep phase - yield CPU time
+        if (sleepTime > 0) {
+            await new Promise(resolve => setTimeout(resolve, sleepTime));
+        }
+
+        // Optionally log progress during ramp-up
+        if (elapsed < rampUpTime && elapsed % 1000 < cycleTime) {
+            Console.log(`Ramping up: ${currentIntensity.toFixed(1)}% CPU usage`);
         }
     }
 
-    Console.log(`Completed CPU stress test: intensity=${intensity}, duration=${duration}ms`);
+    Console.log(`Completed CPU stress test: target=${targetIntensity}%, duration=${duration}ms`);
     return {
-        intensity,
+        intensity: targetIntensity,
         duration,
         completed: true
     };
 }
+
 
 Server.getInstance({
     port: PORT,

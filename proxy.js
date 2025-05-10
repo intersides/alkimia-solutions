@@ -11,6 +11,7 @@ import * as net from "node:net";
 import mqtt from "mqtt";
 import manifest from "./services-manifest.js";
 import ServiceDispatcher from "./modules/ServiceDispatcher.js";
+import ContainerMonitorService from "./modules/ContainerMonitorService.js";
 import {HttpErrorStatus} from "@workspace/common/enums.js";
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,8 @@ let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"})
 let envVars = parseEnvFile(envContent);
 Console.log("environment variables:", envVars);
 
+let containerMonitorService = ContainerMonitorService({});
+
 let serviceDispatcher = ServiceDispatcher({
     manifest
 });
@@ -35,12 +38,15 @@ let dockerManager = DockerManager.getInstance({
     root:_projectRootPath,
     envVars
 });
-dockerManager.on("container-started", function(params){
-    Console.info(`onEvent Container ${params.name} has started`);
+dockerManager.on("container-started", function(containerInfo){
+    Console.info(`onEvent Container ${containerInfo.name} has started`);
+
 });
-dockerManager.on("running", function(params){
-    Console.info(`onEvent Container ${params.name} running`);
-    if(params.name === "mqtt-alkimia-broker"){
+dockerManager.on("running", function(containerInfo){
+
+    Console.info(`onEvent Container ${containerInfo.name} running`);
+
+    if(containerInfo.name === "mqtt-alkimia-broker"){
 
         mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost/");
         mqttClient.on("connect", () => {
@@ -67,15 +73,24 @@ dockerManager.on("running", function(params){
             Console.error("[PROXY] MQTT connection error", err);
         });
     }
+    else if(containerInfo.name === "alkimia-backend"){
+        containerMonitorService.monitorContainerCpu(containerInfo.name, 1000, 0, (reading)=>{
+            Console.info(reading);
+            if(reading.panic){
+                Console.warn("PANIC in ", containerInfo.name);
+            }
+        });
+    }
+
 });
-dockerManager.on("stopped", function(params){
-    Console.warn(`onEvent Container ${params.name} stopped`);
+dockerManager.on("stopped", function(containerInfo){
+    Console.warn(`onEvent Container ${containerInfo.name} stopped`);
 });
-dockerManager.on("error", function(params){
-    Console.error(`onEvent Container ${params.name} error`);
+dockerManager.on("error", function(containerInfo){
+    Console.error(`onEvent Container ${containerInfo.name} error`);
 });
-dockerManager.on("not_exists", function(params){
-    Console.error(`onEvent Container not_exists ${params.name}`);
+dockerManager.on("not_exists", function(containerInfo){
+    Console.error(`onEvent Container not_exists ${containerInfo.name}`);
 });
 
 
@@ -132,7 +147,6 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
         Console.debug("httpRoute:", httpRoute);
         Console.debug("target:", httpRoute.target);
-
 
         dockerManager.checkContainerRunning(httpRoute.target.config.container_name).then((isRunning) => {
             Console.debug("service:", httpRoute.target.config.container_name, "is running:", isRunning);

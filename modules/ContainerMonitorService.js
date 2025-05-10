@@ -1,13 +1,18 @@
 import { exec, execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import Console from "@intersides/console";
+import {utilities as Utilities} from "@alkimia/lib";
 
 /**
  * Service for monitoring Docker container performance metrics
  */
-export default function ContainerMonitorService() {
+export default function ContainerMonitorService(_args=null) {
     const instance = Object.create(ContainerMonitorService.prototype);
     const emitter = new EventEmitter();
+
+    const cpuMonitoringSubscribers = {};
+
+    const {} = Utilities.transfer(_args, {});
 
     /**
      * Get CPU usage percentage for a running container
@@ -113,8 +118,14 @@ export default function ContainerMonitorService() {
      * @param {function} callback - Callback function(reading)
      * @returns {object} - Monitor control object with stop() method
      */
-    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback) {
-        Console.log(`Starting CPU monitoring for ${containerName}`);
+    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback, panicThreshold=80) {
+
+        if(cpuMonitoringSubscribers[containerName]){
+            return Console.log(`Already monitoring ${containerName}`);
+        }
+        else{
+            Console.log(`Starting CPU monitoring for ${containerName}`);
+        }
 
         const startTime = Date.now();
         const monitorData = {
@@ -135,17 +146,30 @@ export default function ContainerMonitorService() {
             const cpuPercent = await getContainerCpuUsage(containerName);
             const timestamp = Date.now();
 
-            // Store the reading
+
             const reading = {
                 cpuPercent,
                 timestamp,
+                panic:false,
                 elapsedMs: timestamp - startTime
             };
+
+            //consider to stop the container if the percentage has reached a panic threshold
+            if(cpuPercent > panicThreshold){
+                Console.warn("Panic Threshold reached !!!");
+                reading.panic = true;
+            }
+
+            // Store the reading
             monitorData.readings.push(reading);
 
             // Call the callback if provided
-            if (typeof callback === "function") {
-                callback(reading);
+            if (typeof callback === "function" && !cpuMonitoringSubscribers[containerName]) {
+                cpuMonitoringSubscribers[containerName] = callback;
+            }
+
+            if(cpuMonitoringSubscribers[containerName]){
+                cpuMonitoringSubscribers[containerName](reading);
             }
 
             // Check if monitoring duration has elapsed
@@ -158,6 +182,7 @@ export default function ContainerMonitorService() {
                     readings: monitorData.readings
                 });
             }
+
         }, intervalMs);
 
         // Return control object
@@ -365,6 +390,3 @@ ContainerMonitorService.getSingleton = function() {
     return _instance;
 };
 
-ContainerMonitorService.getInstance = function() {
-    return ContainerMonitorService();
-};

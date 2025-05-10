@@ -7,6 +7,7 @@
     "docker-build": "docker build -t intersides-workspace-stresser .",
     "docker-run": "docker run -d --name intersides-workspace-stresser --network alkimia-net -p 7777:3000",
     "development": "NODE_TLS_REJECT_UNAUTHORIZED=0 ENV=development pm2 start ecosystem.config.cjs --env development --no-daemon",
+    "development_with_cert": "NODE_EXTRA_CA_CERTS=../certs/fullchain.pem ENV=development pm2 start ecosystem.config.cjs --env development --no-daemon",
     "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

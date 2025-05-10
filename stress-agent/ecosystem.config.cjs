@@ -21,8 +21,7 @@ module.exports = {
             "useFsEvents": true
         },
         env_development: {
-            "NODE_ENV": "development",
-            NODE_TLS_REJECT_UNAUTHORIZED: "0"
+            "NODE_ENV": "development"
         },
         env_production: {
             "NODE_ENV": "production"

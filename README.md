@@ -1,6 +1,6 @@
 # Intersides Workspace
 
-A monorepo workspace for Intersides applications, built around the Alkimia framework. This workspace contains both frontend and backend services with a custom Node.js-based proxy for local development and production deployment, featuring intelligent lazy loading of Docker containers.
+A monorepo workspace for Intersides applications, built around the Alkimia framework. This workspace contains both frontend and backend services with a custom Node.js-based proxy for local development and production deployment, featuring intelligent lazy loading of Docker containers and resource monitoring capabilities.
 
 ## Project Overview
 
@@ -11,6 +11,7 @@ Intersides Workspace is a comprehensive development environment that:
 - Supports both development and production environments
 - Uses a modular architecture with shared libraries
 - Integrates with the Alkimia framework for frontend development
+- Includes container monitoring and stress testing capabilities
 
 ## Project Structure
 
@@ -23,13 +24,15 @@ intersides-workspace/
 │   ├── common/        # Shared code between frontend and backend
 │   ├── browser/       # Browser-specific libraries
 │   └── node/          # Node.js-specific libraries
+├── modules/
+│   └── ContainerMonitorService.js  # Service for monitoring Docker container performance
 ├── certs/             # SSL certificates for local development
 │   ├── fullchain.pem  # Combined certificate with CA
 │   └── key.pem        # Private key
 ├── services/          # Additional service definitions
-├── stress-agent/      # Performance testing tools
+├── stress-agent/      # Performance testing tools for stress testing containers
 ├── tests/             # Test suite
-├── DockerManager.js   # Docker container management service for lazy loading
+├── DockerManager.js   # Docker container management service with resource limits
 ├── proxy.js           # Custom Node.js HTTPS proxy with lazy container startup
 ├── ecosystem.config.cjs # PM2 process manager configuration
 ├── Dockerfile.base    # Base Docker image configuration
@@ -48,7 +51,7 @@ The project includes a sophisticated Node.js proxy (`proxy.js`) that:
 4. Implements lazy loading of Docker containers - starting services only when they're requested
 5. Provides a lightweight alternative to traditional reverse proxies
 
-### Docker Integration
+### Docker Integration with Resource Management
 
 The `DockerManager.js` module provides:
 
@@ -56,6 +59,27 @@ The `DockerManager.js` module provides:
 2. Automatic building and starting of containers when services are requested
 3. Container health monitoring
 4. Environment-specific configuration
+5. Resource limits for containers (CPU and memory)
+6. Support for container scaling strategies
+
+### Container Performance Monitoring
+
+The `ContainerMonitorService.js` module provides:
+
+1. Real-time monitoring of container CPU and memory usage
+2. Threshold-based alerts for resource usage
+3. Performance data collection for analysis
+4. Support for automatic scaling decisions
+5. Panic threshold detection for critical resource usage
+
+### Stress Testing
+
+The `stress-agent` module provides:
+
+1. Tools for generating controlled load on backend services
+2. Incremental stress testing with configurable parameters
+3. CPU load simulation with precise intensity control
+4. Integration with the monitoring system for observing container behavior under load
 
 ### Modular Architecture
 
@@ -135,6 +159,54 @@ In development mode, the services are available at:
 - Frontend: https://app.alkimia.localhost
 - Backend: https://server.alkimia.localhost
 
+## Container Resource Management
+
+Docker containers are configured with resource limits to prevent resource exhaustion and enable testing of scaling strategies:
+
+```bash
+# CPU and memory limits are set in DockerManager.js
+--cpus=1     # Limit to 1 CPU core
+--memory=512m # Limit to 512MB of memory
+```
+
+These limits help simulate resource constraints and test how the system behaves under load.
+
+## Stress Testing
+
+The stress-agent provides endpoints to generate controlled load on the backend services:
+
+```bash
+# Run a constant CPU stress test
+curl http://localhost:8888/stress
+
+# Run an incremental CPU stress test (10% increase every 10 seconds)
+curl http://localhost:8888/stress-incremental
+```
+
+The backend provides two stress endpoints:
+- `/api/stress?intensity=80&duration=30000` - Constant CPU load at specified intensity
+- `/api/stress/incremental?steps=10&maxIntensity=100&stepDuration=10000` - Gradually increasing CPU load
+
+## Container Monitoring
+
+The ContainerMonitorService provides real-time monitoring of container resources:
+
+```javascript
+// Example usage in your code
+import ContainerMonitorService from './modules/ContainerMonitorService.js';
+
+const monitorService = ContainerMonitorService.getSingleton();
+
+// Monitor CPU usage with panic threshold at 80%
+monitorService.monitorContainerCpu('alkimia-backend', 1000, 0, (reading) => {
+  console.log(`CPU: ${reading.cpuPercent.toFixed(2)}%`);
+  if (reading.panic) {
+    console.log('CPU usage exceeded panic threshold!');
+    // Implement scaling strategy here
+  }
+}, 80);
+```
+
 ## Production Deployment
 
 For production deployment:
@@ -171,6 +243,8 @@ BACKEND_PORT=7070
 2. Make changes to the code in the `apps` or `libs` directories
 3. The changes will be automatically reflected due to volume mounts
 4. Access the applications at their respective URLs
+5. Use the stress-agent to test system behavior under load
+6. Monitor container performance with ContainerMonitorService
 
 ## Troubleshooting
 
@@ -191,3 +265,11 @@ If you encounter issues with the Node.js proxy:
 2. Verify that the SSL certificates are correctly referenced in the proxy code
 3. Ensure Docker is running and accessible
 4. Check that the required ports are available
+
+### Container Resource Limits
+
+If containers are being terminated due to resource limits:
+
+1. Adjust the CPU and memory limits in DockerManager.js
+2. Monitor container performance during stress tests
+3. Implement appropriate scaling strategies based on resource usage patterns

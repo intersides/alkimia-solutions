@@ -1,11 +1,12 @@
 import path from "node:path";
 import Server from "@workspace/node/services/Server.js";
 import Router from "@workspace/node/services/Router.js";
-import {HttpResponse} from "@workspace/node/ServerResponse.js";
+import {HttpErrorGeneric, HttpResponse} from "@workspace/node/ServerResponse.js";
 const url = await import("url");
 import Console from "@intersides/console";
 
-// Console.log("process.env:", process.env);
+
+Console.log("process.env:", process.env);
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 const __appRoot = path.resolve(__dirname, "./");
@@ -13,6 +14,43 @@ const __appRoot = path.resolve(__dirname, "./");
 globalThis.__appRoot = __appRoot;
 Console.log("globalThis.__appRoot:", globalThis.__appRoot);
 
+async function runStressTestOnBackend() {
+
+    return new Promise(async (resolve, reject) => {
+
+        try {
+            // Call the stress endpoint with high intensity for 30 seconds
+            const response = await fetch("https://server.alkimia.localhost/api/stress?intensity=100&duration=120000");
+            const result = await response.json();
+            console.log("Stress test started:", result);
+            resolve(result);
+        } catch (error) {
+            console.error("Error starting stress test:", error);
+            reject(error);
+        }
+    });
+
+
+}
+
+async function runStressIncrementalTestOnBackend() {
+
+    return new Promise(async (resolve, reject) => {
+
+        try {
+            // Call the stress endpoint with high intensity for 30 seconds
+            const response = await fetch("https://server.alkimia.localhost/api/stress/incremental?steps=10&maxIntensity=100&stepDuration=10000");
+            const result = await response.json();
+            console.log("Stress Incremental started:", result);
+            resolve(result);
+        } catch (error) {
+            console.error("Error starting stress incremental test:", error);
+            reject(error);
+        }
+    });
+
+
+}
 
 Server.getInstance({
     port:8888,
@@ -27,19 +65,38 @@ Server.getInstance({
                     }
                 },
                 "/stress":{
-                    handler:function(){
+                    handler: async function(){
 
-                        fetch("https://server.alkimia.localhost/").then(response=>{
-                            console.debug("DEBUG: response", response);
-                        }).catch(exc=>{
-                            console.error("Error: exc", exc);
-                        }).finally(()=>{
-
+                        runStressTestOnBackend().then(result=>{
+                            Console.debug("result" ,result);
+                            return HttpResponse({
+                                data: { msg: "should stress a service" }
+                            });
+                        }).catch(error=>{
+                            Console.error(error.message);
+                            return HttpErrorGeneric({
+                                data: { msg: error.message }
+                            });
                         });
 
-                        return HttpResponse({
-                            data: { msg: "should stress a service" }
+
+                    }
+                },
+                "/stress-incremental":{
+                    handler: async function(){
+
+                        runStressIncrementalTestOnBackend().then(result=>{
+                            Console.debug("result" ,result);
+                            return HttpResponse({
+                                data: { msg: "should stress a service" }
+                            });
+                        }).catch(error=>{
+                            Console.error(error.message);
+                            return HttpErrorGeneric({
+                                data: { msg: error.message }
+                            });
                         });
+
 
                     }
                 }

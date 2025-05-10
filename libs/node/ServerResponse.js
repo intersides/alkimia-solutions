@@ -53,6 +53,30 @@ export function HttpErrorNotFound(_params){
     return _init();
 }
 
+export function HttpErrorGeneric(_params){
+    let params = utilities.transfer(_params, {
+        data:null,
+        mimeType:MimeType.JSON
+    });
+    if(!params.data){
+        params.data = {};
+    }
+    params.data.errorType = {...HttpErrorStatus.Http500_Internal_Server_Error};
+    let instance = HttpError(params);
+
+    function _init(){
+        let response = new Response(instance?.data || "", {
+            ...HttpErrorStatus.Http500_Internal_Server_Error,
+            header: null
+        });
+        instance.setWebResponse(response, params.mimeType);
+        return instance;
+    }
+
+    return _init();
+}
+
+
 
 export function HttpResponse(_params={ data:null, mimeType:MimeType.JSON } ) {
     let _parent = ServerResponse({ data: _params.data});
