@@ -1,20 +1,14 @@
 module.exports = {
     apps: [{
-        name: "proxy",
-        script: "./proxy.js",
-        watch: true,//process.env.ENV === "development",
+        name: "load-balancer",
+        script: "./main.js",  // Your frontend server script
+        watch: true,            // Enable file watching
         watch_delay: 1000,      // Delay between file change detection (ms)
-        ignore_watch: [
+        ignore_watch: [         // Files and patterns to ignore
             "node_modules",
             "Dockerfile",
             "package.json",
-            "package-lock.json",
-            ".git",
-            ".idea/",
-            ".idea/workspace.xml",
-            ".gitignore",
-            "services",
-            "*.md"
+            "package-lock.json"
         ],
         watch_options: {
             "followSymlinks": false,

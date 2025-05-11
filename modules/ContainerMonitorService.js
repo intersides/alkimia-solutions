@@ -148,6 +148,7 @@ export default function ContainerMonitorService(_args=null) {
 
 
             const reading = {
+                container:containerName,
                 cpuPercent,
                 timestamp,
                 panic:false,

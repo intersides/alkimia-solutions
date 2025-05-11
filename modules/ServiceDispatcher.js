@@ -5,6 +5,8 @@ import Console from "@intersides/console";
 export default function ServiceDispatcher(_args=null){
     const instance = Object.create(ServiceDispatcher.prototype, {});
 
+
+
     const { manifest } = Utilities.transfer(_args, {
         manifest:null
     });

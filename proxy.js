@@ -33,6 +33,42 @@ let serviceDispatcher = ServiceDispatcher({
 });
 
 let  mqttClient = null;
+mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost/");
+mqttClient.on("connect", () => {
+    Console.debug("[PROXY] MQTT connected");
+
+    mqttClient.subscribe("test/ping", (err) => {
+        if (err) {
+            console.error("[PROXY] MQTT Subscribe error:", err.message);
+        } else {
+            console.log("[PROXY] MQTT Subscribed to test/ping");
+        }
+    });
+
+    mqttClient.subscribe("services/network", (err) => {
+        if (err) {
+            console.error("[PROXY] MQTT Subscribe error:", err.message);
+        } else {
+            console.log("[PROXY] MQTT Subscribed to test/ping");
+        }
+    });
+
+    setTimeout(()=>{
+        mqttClient.publish("test/ping", "hello from proxy", {qos:2});
+    }, 5000);
+
+});
+
+mqttClient.on("message", (topic, message) => {
+    Console.warn("[PROXY] MQTT message:", topic, message.toString());
+    if(topic === "services/network"){
+        const topicMessage = JSON.parse(message.toString());
+        Console.debug("[PROXY] MQTT topicMessage:", topic, topicMessage);
+    }
+});
+mqttClient.on("error", (err) => {
+    Console.error("[PROXY] MQTT connection error", err);
+});
 
 let dockerManager = DockerManager.getInstance({
     root:_projectRootPath,
@@ -46,36 +82,10 @@ dockerManager.on("running", function(containerInfo){
 
     Console.info(`onEvent Container ${containerInfo.name} running`);
 
-    if(containerInfo.name === "mqtt-alkimia-broker"){
+    if(containerInfo.name === "alkimia-backend"){
 
-        mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost/");
-        mqttClient.on("connect", () => {
-            Console.debug("[PROXY] MQTT connected");
-
-            mqttClient.subscribe("test/ping", (err) => {
-                if (err) {
-                    console.error("[PROXY] MQTT Subscribe error:", err.message);
-                } else {
-                    console.log("[PROXY] MQTT Subscribed to test/ping");
-                }
-            });
-
-            setTimeout(()=>{
-                mqttClient.publish("test/ping", "hello from proxy", {qos:2});
-            }, 5000);
-
-        });
-
-        mqttClient.on("message", (topic, message) => {
-            Console.debug("[PROXY] MQTT message:", topic, message.toString());
-        });
-        mqttClient.on("error", (err) => {
-            Console.error("[PROXY] MQTT connection error", err);
-        });
-    }
-    else if(containerInfo.name === "alkimia-backend"){
-        containerMonitorService.monitorContainerCpu(containerInfo.name, 1000, 0, (reading)=>{
-            Console.info(reading);
+        containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (reading)=>{
+            Console.info("monitoring reading:", reading);
             if(reading.panic){
                 Console.warn("PANIC in ", containerInfo.name);
             }
@@ -321,7 +331,70 @@ Promise.all([
             reject(`Failed to start ${mqttBrokerName}: ${err.message}`);
         }
 
+    }),
+
+    new Promise((resolve, reject)=>{
+
+        let serviceName = "alkimia-load-balancer";
+
+        // Start or ensure MQTT broker is running
+        try{
+            dockerManager.checkContainerRunning(serviceName).then((isRunning) => {
+                Console.debug("service:", serviceName, "is running:", isRunning);
+                if(!isRunning){
+
+                    dockerManager.manageContainer({
+                        name: "load-balancer",
+                        container_name: serviceName,
+                        subdomain: "balancer",
+                        location: "services/LoadBalancer",
+                        port: 7001,
+                        networkName:"alkimia-net",
+                        forceRestart:false
+                    });
+
+                    dockerManager.waitForContainerReady(serviceName).then(() => {
+                        Console.debug(`container ${serviceName} is now running`);
+
+                        dockerManager.waitUntilContainerIsHealthy(serviceName).then((isHealthy)=>{
+                            if(isHealthy){
+                                Console.debug(`container ${serviceName} is now ready`);
+                                resolve(`Container ${serviceName} is now running`);
+                            }
+                            else{
+                                Console.error(`container ${serviceName} didn't got into ready state`);
+                                reject(`container ${serviceName} didn't got into ready state`);
+                            }
+                        }).catch(err=>{
+                            Console.error(err);
+                            reject(`container ${serviceName} exception: ${err.message}`);
+                        });
+
+                    }).catch(err => {
+                        Console.error(err);
+                        reject(`container ${serviceName} exception: ${err.message}`);
+                    });
+
+                }
+                else{
+                    resolve(`Service: ${serviceName} is already running`);
+                    resolve(serviceName);
+
+                }
+
+            }).catch(err => {
+                Console.error(err);
+                reject(`container ${serviceName} exception: ${err.message}`);
+
+            });
+        }catch (err) {
+            Console.error(err.message);
+            reject(`Failed to start ${serviceName}: ${err.message}`);
+            reject(`container ${serviceName} exception: ${err.message}`);
+        }
+
     })
+
 ]).then(resolved=>{
     Console.info(resolved);
 

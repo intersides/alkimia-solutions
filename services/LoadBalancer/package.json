@@ -1,0 +1,25 @@
+{
+  "name": "load-balancer",
+  "version": "1.0.0",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "docker-build": "docker build -t alkimia-load-balancer .",
+    "docker-run": "docker run -d --name alkimia-load-balancer --network alkimia-net -p 7001:3000",
+    "development": "NODE_EXTRA_CA_CERTS=../certs/fullchain.pem ENV=development pm2 start ecosystem.config.cjs --env development --no-daemon",
+    "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@alkimia/lib": "^1.0.9",
+    "@workspace/common": "*",
+    "@workspace/node": "*",
+    "sass": "^1.86.3"
+  },
+  "devDependencies": {
+    "pm2": "^6.0.5"
+  }
+}
