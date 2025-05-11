@@ -12,6 +12,7 @@ Intersides Workspace is a comprehensive development environment that:
 - Uses a modular architecture with shared libraries
 - Integrates with the Alkimia framework for frontend development
 - Includes container monitoring and stress testing capabilities
+- Features a load balancer service for scaling strategies
 
 ## Project Structure
 
@@ -26,10 +27,11 @@ intersides-workspace/
 │   └── node/          # Node.js-specific libraries
 ├── modules/
 │   └── ContainerMonitorService.js  # Service for monitoring Docker container performance
+├── services/
+│   └── LoadBalancer/  # Load balancing service for scaling strategies
 ├── certs/             # SSL certificates for local development
 │   ├── fullchain.pem  # Combined certificate with CA
 │   └── key.pem        # Private key
-├── services/          # Additional service definitions
 ├── stress-agent/      # Performance testing tools for stress testing containers
 ├── tests/             # Test suite
 ├── DockerManager.js   # Docker container management service with resource limits
@@ -57,7 +59,7 @@ The `DockerManager.js` module provides:
 
 1. On-demand container management
 2. Automatic building and starting of containers when services are requested
-3. Container health monitoring
+3. Container health monitoring with health checks
 4. Environment-specific configuration
 5. Resource limits for containers (CPU and memory)
 6. Support for container scaling strategies
@@ -71,6 +73,16 @@ The `ContainerMonitorService.js` module provides:
 3. Performance data collection for analysis
 4. Support for automatic scaling decisions
 5. Panic threshold detection for critical resource usage
+
+### Load Balancer Service
+
+The `LoadBalancer` service provides:
+
+1. Intelligent distribution of traffic across multiple service instances
+2. MQTT integration for real-time communication between services
+3. Health monitoring of backend services
+4. Connection-aware scaling strategies
+5. Support for graceful scaling up and down of services
 
 ### Stress Testing
 
@@ -142,6 +154,7 @@ Add the following entries to your `/etc/hosts` file:
 ```
 127.0.0.1 app.alkimia.localhost
 127.0.0.1 server.alkimia.localhost
+127.0.0.1 balancer.alkimia.localhost
 ```
 
 ### Starting the Development Environment
@@ -158,6 +171,7 @@ The proxy will automatically start Docker containers on-demand when requests are
 In development mode, the services are available at:
 - Frontend: https://app.alkimia.localhost
 - Backend: https://server.alkimia.localhost
+- Load Balancer: https://balancer.alkimia.localhost
 
 ## Container Resource Management
 
@@ -170,6 +184,22 @@ Docker containers are configured with resource limits to prevent resource exhaus
 ```
 
 These limits help simulate resource constraints and test how the system behaves under load.
+
+## Container Health Monitoring
+
+The system includes Docker health checks to ensure containers are functioning properly:
+
+```dockerfile
+# Example from LoadBalancer Dockerfile
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail http://localhost:3000/ping || exit 1
+```
+
+The DockerManager includes a `waitUntilContainerIsHealthy` method that polls the container's health status:
+
+```javascript
+// Wait for a container to report healthy status
+await dockerManager.waitUntilContainerIsHealthy('alkimia-load-balancer');
+```
 
 ## Stress Testing
 
@@ -206,6 +236,26 @@ monitorService.monitorContainerCpu('alkimia-backend', 1000, 0, (reading) => {
   }
 }, 80);
 ```
+
+## Service Communication
+
+Services communicate with each other using MQTT for real-time messaging:
+
+```javascript
+// Example from LoadBalancer service
+mqttClient = mqtt.connect("mqtt://mqtt-alkimia-broker/");
+mqttClient.on("connect", () => {
+    mqttClient.publish("services/network", JSON.stringify({
+        service: "load-balancer", 
+        message: {
+            event: "connection",
+            status: "connected"
+        }
+    }), {qos: 2});
+});
+```
+
+This enables services to share status information, coordinate scaling activities, and implement distributed decision-making.
 
 ## Production Deployment
 
@@ -273,3 +323,12 @@ If containers are being terminated due to resource limits:
 1. Adjust the CPU and memory limits in DockerManager.js
 2. Monitor container performance during stress tests
 3. Implement appropriate scaling strategies based on resource usage patterns
+
+### Container Health Checks
+
+If containers are failing health checks:
+
+1. Check the container logs for error messages
+2. Verify that the health check endpoint is responding correctly
+3. Adjust the health check parameters (interval, timeout, retries) if needed
+4. Ensure the service inside the container is properly initialized before health checks begin
