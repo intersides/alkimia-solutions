@@ -168,6 +168,48 @@ export default function DockerManager(_args = null) {
     }
 
     /**
+     * Checks if a Docker container is in a healthy state within a specified timeout period.
+     *
+     * @param {string} containerName - The name of the Docker container to check.
+     * @param {number} timeoutMs - The maximum time in milliseconds to wait for the container to become healthy.
+     * @return {Promise<boolean>} A promise that resolves to `true` if the container is healthy, or rejects with an error if the container is unhealthy, an error occurs, or the timeout is exceeded.
+     */
+    function waitUntilContainerIsHealthy(containerName, timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            const intervalMs = 2000; // Check every 2 seconds
+            let elapsedTime = 0;
+
+            const checkHealth = () => {
+                exec(`docker inspect -f '{{.State.Health.Status}}' ${containerName}`, (err, stdout, stderr) => {
+                    if (err) {
+                        Console.error(`Error checking health for container ${containerName}:`, stderr);
+                        reject(err); // Fail if there's an error
+                        return;
+                    }
+
+                    const status = stdout.trim();
+                    Console.debug(`Health check status for container "${containerName}":`, status);
+
+                    if (status === "healthy") {
+                        resolve(true); // Healthy, resolve success
+                    } else if (status === "unhealthy") {
+                        reject(new Error(`Container ${containerName} is unhealthy.`)); // Unhealthy, reject promise
+                    } else {
+                        if (elapsedTime >= timeoutMs) {
+                            reject(new Error(`Container ${containerName} did not become healthy within ${timeoutMs}ms.`));
+                        } else {
+                            elapsedTime += intervalMs;
+                            setTimeout(checkHealth, intervalMs); // Retry after interval
+                        }
+                    }
+                });
+            };
+
+            checkHealth(); // Start checking
+        });
+    }
+
+    /**
      * Manage container lifecycle (create, start, or restart)
      * @param {Object} options - Container options
      * @returns {string} - Result of operation
@@ -340,6 +382,7 @@ export default function DockerManager(_args = null) {
     instance.ensureNetworkExists = ensureNetworkExists;
     instance.buildBaseImage = buildBaseImage;
     instance.waitForContainerReady = waitForContainerReady;
+    instance.waitUntilContainerIsHealthy = waitUntilContainerIsHealthy;
     instance.manageContainer = manageContainer;
     instance.startMosquittoBroker = startMosquittoBroker;
     instance.stopAndRemoveContainer = stopAndRemoveContainer;

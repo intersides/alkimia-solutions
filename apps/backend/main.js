@@ -111,10 +111,10 @@ Server.getInstance({
                 }
             },
             GET: {
-                "/hello": {
+                "/ping": {
                     isProtected: false,
                     handler: () => HttpResponse({
-                        data: {msg: "hello"},
+                        data: {msg: "pong"},
                         mimeType:MimeType.JSON
                     })
                 },

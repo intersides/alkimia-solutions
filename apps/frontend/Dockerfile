@@ -4,6 +4,11 @@ FROM intersides-workspace-base AS base
 # Single Alpine stage for build and runtime
 FROM node:24.0.1-alpine
 
+# Install vim and curl
+RUN apk add --no-cache vim curl
+
+ARG ENV
+
 WORKDIR /app
 
 # Copy only what's needed from the base image
@@ -25,6 +30,9 @@ RUN npm install
 RUN echo "mode: $ENV"
 
 EXPOSE 3000
+
+# Health check via HTTP
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail http://localhost:3000/ping || exit 1
 
 # Run the frontend
 CMD ["sh", "-c", "npm run development"]

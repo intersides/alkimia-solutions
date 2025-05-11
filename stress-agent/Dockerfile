@@ -4,6 +4,9 @@ FROM intersides-workspace-base AS base
 # Single Alpine stage for build and runtime
 FROM node:23-alpine
 
+# Install vim
+RUN apk add --no-cache vim
+
 WORKDIR /app
 
 # Copy only what's needed from the base image

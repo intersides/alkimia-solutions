@@ -3,6 +3,10 @@ FROM intersides-workspace-base AS base
 
 # Single Alpine stage for build and runtime
 FROM node:24.0.1-alpine
+
+# Install vim and curl
+RUN apk add --no-cache vim curl
+
 ARG ENV
 
 WORKDIR /app
@@ -18,9 +22,12 @@ COPY apps/backend .
 
 RUN npm install
 
+RUN echo "mode: $ENV"
+
 EXPOSE 3000
 
-RUN echo "mode: $ENV"
+# Health check via HTTP
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail http://localhost:3000/ping || exit 1
 
 # Use PM2 runtime for both development and production
 # The environment will be passed as an argument

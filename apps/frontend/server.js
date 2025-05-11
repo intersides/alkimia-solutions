@@ -32,11 +32,11 @@ Server.getInstance({
         },
         routes: {
             GET: {
-                "/hello": {
+                "/ping": {
                     isProtected: false,
-                    handler: ()=>HttpResponse({
-                        data: {msg:"hello"},
-                        mimeType: MimeType.JSON
+                    handler: () => HttpResponse({
+                        data: {msg: "pong"},
+                        mimeType:MimeType.JSON
                     })
                 },
                 "/": {
@@ -89,7 +89,7 @@ Server.getInstance({
                                                             });
                                                         
                                                             // Publish a test message
-                                                            mqttClient.publish('test/ping', 'frontned is alive');
+                                                            mqttClient.publish('test/ping', 'frontend is alive');
                                                             
                                                         });
                                                         

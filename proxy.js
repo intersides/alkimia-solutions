@@ -166,7 +166,30 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
                 dockerManager.waitForContainerReady(httpRoute.target.config.container_name).then(() => {
                     Console.debug(`container ${httpRoute.target.config.container_name} is now running`);
-                    proxyRequest(httpRoute.target, req, res);
+
+                    dockerManager.waitUntilContainerIsHealthy(httpRoute.target.config.container_name).then((isHealthy)=>{
+                        if(isHealthy){
+                            Console.debug(`container ${httpRoute.target.config.container_name} is now ready`);
+                            proxyRequest(httpRoute.target, req, res);
+                        }
+                        else{
+
+                            if (!res.headersSent) {
+                                res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+                                res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+                            }
+
+                        }
+                    }).catch(err=>{
+                        Console.error(err);
+
+                        if (!res.headersSent) {
+                            res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+                            res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+                        }
+
+                    });
+
                 }).catch(err => {
                     Console.error(err);
 
@@ -176,15 +199,6 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
                     }
 
                 });
-
-                // dockerService.waitForContainerReady(httpRoute.target.config.container_name).then(() => {
-                //     Console.debug(`container ${httpRoute.target.config.container_name} is now running`);
-                //
-                //     proxyRequest(target, req, res);
-                //
-                // }).catch(err => {
-                //     Console.error(err);
-                // });
 
             }
             else{
