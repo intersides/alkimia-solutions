@@ -13,6 +13,7 @@ Intersides Workspace is a comprehensive development environment that:
 - Integrates with the Alkimia framework for frontend development
 - Includes container monitoring and stress testing capabilities
 - Features a load balancer service for scaling strategies
+- Provides persistent data storage with MongoDB replica set
 
 ## Project Structure
 
@@ -26,9 +27,11 @@ intersides-workspace/
 │   ├── browser/       # Browser-specific libraries
 │   └── node/          # Node.js-specific libraries
 ├── modules/
-│   └── ContainerMonitorService.js  # Service for monitoring Docker container performance
+│   ├── ContainerMonitorService.js  # Service for monitoring Docker container performance
+│   └── MqttService.js  # Service for MQTT communication between components
 ├── services/
-│   └── LoadBalancer/  # Load balancing service for scaling strategies
+│   ├── LoadBalancer/  # Load balancing service for scaling strategies
+│   └── mongodb/       # MongoDB data and configuration files
 ├── certs/             # SSL certificates for local development
 │   ├── fullchain.pem  # Combined certificate with CA
 │   └── key.pem        # Private key
@@ -63,6 +66,7 @@ The `DockerManager.js` module provides:
 4. Environment-specific configuration
 5. Resource limits for containers (CPU and memory)
 6. Support for container scaling strategies
+7. MongoDB container management with replica set support
 
 ### Container Performance Monitoring
 
@@ -83,6 +87,26 @@ The `LoadBalancer` service provides:
 3. Health monitoring of backend services
 4. Connection-aware scaling strategies
 5. Support for graceful scaling up and down of services
+
+### MQTT Communication Service
+
+The `MqttService` module provides:
+
+1. Centralized MQTT client management
+2. Event-based communication between services
+3. Topic subscription and publishing capabilities
+4. Error handling and reconnection logic
+5. Service discovery and status broadcasting
+
+### MongoDB Database Integration
+
+The project includes MongoDB integration with:
+
+1. Replica set support for change streams functionality
+2. Automatic initialization and health monitoring
+3. Persistent data storage for scaling information
+4. Authentication and security configuration
+5. Exponential backoff for reliable initialization
 
 ### Stress Testing
 
@@ -155,6 +179,8 @@ Add the following entries to your `/etc/hosts` file:
 127.0.0.1 app.alkimia.localhost
 127.0.0.1 server.alkimia.localhost
 127.0.0.1 balancer.alkimia.localhost
+127.0.0.1 mqtt.alkimia.localhost
+127.0.0.1 mongodb.alkimia.localhost
 ```
 
 ### Starting the Development Environment
@@ -172,6 +198,7 @@ In development mode, the services are available at:
 - Frontend: https://app.alkimia.localhost
 - Backend: https://server.alkimia.localhost
 - Load Balancer: https://balancer.alkimia.localhost
+- MongoDB: mongodb://mongoadmin:secret@mongodb.alkimia.localhost:27017
 
 ## Container Resource Management
 
@@ -199,6 +226,30 @@ The DockerManager includes a `waitUntilContainerIsHealthy` method that polls the
 ```javascript
 // Wait for a container to report healthy status
 await dockerManager.waitUntilContainerIsHealthy('alkimia-load-balancer');
+```
+
+## MongoDB Replica Set
+
+The MongoDB container is configured as a replica set to enable change streams functionality:
+
+```javascript
+// MongoDB is started with replica set support
+const runCommand = `docker run -d --name ${_containerName} \
+                     --network ${_networkName} \
+                     -p 27017:27017 \
+                     -v ${dataPath}:/data/db \
+                     -v ${keyFilePath}:/data/mongodb-keyfile \
+                     mongo:latest \
+                     --replSet rs0 \
+                     --keyFile /data/mongodb-keyfile \
+                     --bind_ip_all`;
+```
+
+The replica set is automatically initialized with exponential backoff polling to ensure reliability:
+
+```javascript
+// Initialize replica set when MongoDB is ready
+const initReplicaSet = `docker exec ${_containerName} mongosh --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
 ```
 
 ## Stress Testing
@@ -242,16 +293,25 @@ monitorService.monitorContainerCpu('alkimia-backend', 1000, 0, (reading) => {
 Services communicate with each other using MQTT for real-time messaging:
 
 ```javascript
-// Example from LoadBalancer service
-mqttClient = mqtt.connect("mqtt://mqtt-alkimia-broker/");
-mqttClient.on("connect", () => {
-    mqttClient.publish("services/network", JSON.stringify({
-        service: "load-balancer", 
-        message: {
-            event: "connection",
-            status: "connected"
-        }
-    }), {qos: 2});
+// Example from MqttService
+import MqttService from './modules/MqttService.js';
+
+const mqttService = MqttService.getSingleton({
+  brokerUrl: "mqtt://mqtt-alkimia-broker/"
+});
+
+// Publishing messages
+mqttService.publish("services/network", {
+  service: "proxy",
+  message: {
+    event: "scaling",
+    action: "start-new-instance"
+  }
+});
+
+// Subscribing to topics
+mqttService.subscribe("services/network", (message) => {
+  console.log("Received message:", message);
 });
 ```
 
@@ -332,3 +392,12 @@ If containers are failing health checks:
 2. Verify that the health check endpoint is responding correctly
 3. Adjust the health check parameters (interval, timeout, retries) if needed
 4. Ensure the service inside the container is properly initialized before health checks begin
+
+### MongoDB Issues
+
+If MongoDB fails to initialize properly:
+
+1. Check the MongoDB container logs: `docker logs mongodb-alkimia-storage`
+2. Verify the keyFile permissions are set correctly (should be 400)
+3. Ensure the replica set initialization is successful
+4. Check network connectivity between containers
