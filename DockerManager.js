@@ -329,6 +329,127 @@ export default function DockerManager(_args = null) {
     }
 
     /**
+     * Start or restart MongoDB container with replica set support
+     * @param {string} [_containerName="mongodb-alkimia-storage"] - Name for the MongoDB container
+     * @returns {string} - Result of operation
+     */
+    function startMongoDb(_containerName = "mongodb-alkimia-storage", _networkName = "alkimia-net") {
+        // Ensure the network exists
+        ensureNetworkExists(_networkName);
+
+        // Check container status
+        const containerStatus = getContainerStatus(_containerName);
+        Console.debug(`MongoDB ${_containerName} status: ${containerStatus}`);
+
+        if (containerStatus === "running") {
+            Console.info(`MongoDB ${_containerName} is already running`);
+            return "already_running";
+        } else if (containerStatus === "stopped") {
+            Console.info(`Starting existing MongoDB ${_containerName}`);
+            execSync(`docker start ${_containerName}`, {stdio: "inherit"});
+            return "started_existing";
+        }
+
+        // Create the data directory if it doesn't exist
+        const dataPath = path.resolve(root, "services/mongodb/data");
+        if (!fs.existsSync(dataPath)) {
+            fs.mkdirSync(dataPath, { recursive: true });
+        }
+
+        // Create a MongoDB config directory if it doesn't exist
+        const configPath = path.resolve(root, "services/mongodb/config");
+        if (!fs.existsSync(configPath)) {
+            fs.mkdirSync(configPath, { recursive: true });
+        }
+        console.debug("DEBUG: configPath", configPath);
+
+        // Create a keyFile for replica set authentication
+        const keyFilePath = path.resolve(configPath, "mongodb-keyfile");
+        if (!fs.existsSync(keyFilePath)) {
+            // Generate a secure random key
+            execSync(`openssl rand -base64 756 > ${keyFilePath}`, { stdio: "inherit" });
+            // Set proper permissions (MongoDB requires file permissions to be 400)
+            execSync(`chmod 400 ${keyFilePath}`, { stdio: "inherit" });
+        }
+
+        // Create a new container with replica set support
+        const runCommand = `docker run -d --name ${_containerName} \
+                         --network ${_networkName} \
+                         -p 27017:27017 \
+                         -p 28017:28017 \
+                         -e MONGO_INITDB_ROOT_USERNAME=mongoadmin \
+                         -e MONGO_INITDB_ROOT_PASSWORD=secret \
+                         -v ${dataPath}:/data/db \
+                         -v ${keyFilePath}:/data/mongodb-keyfile \
+                         --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })' --quiet" \
+                         --health-interval=10s \
+                         --health-timeout=5s \
+                         --health-retries=5 \
+                         --health-start-period=30s \
+                         mongo:latest \
+                         --replSet rs0  \
+                         --keyFile /data/mongodb-keyfile \
+                         --bind_ip_all`;
+
+        Console.debug("About to exec runCommand for MongoDB with", runCommand);
+
+        execSync(runCommand, {
+            cwd: root,
+            stdio: "inherit"
+        });
+
+        // After starting the container, initialize the replica set when ready
+        Console.info("Waiting for MongoDB to start before initializing replica set...");
+
+        // Function to check if MongoDB is ready and initialize replica set
+        const initializeReplicaSetWhenReady = () => {
+            try {
+                // Check if MongoDB is responding to commands
+                const checkCommand = `docker exec ${_containerName} mongosh --eval 'db.runCommand({ ping: 1 })' --quiet`;
+                execSync(checkCommand, { stdio: "pipe" });
+
+                // MongoDB is ready, initialize replica set
+                Console.info("MongoDB is ready, initializing replica set...");
+                const initReplicaSet = `docker exec ${_containerName} mongosh --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
+                execSync(initReplicaSet, { stdio: "inherit" });
+                Console.info("MongoDB replica set initialized successfully");
+
+                return true;
+            } catch (error) {
+                Console.debug("MongoDB not ready yet, retrying...");
+                return false;
+            }
+        };
+
+        // Set up polling with exponential backoff
+        let attempts = 0;
+        const maxAttempts = 10;
+        const pollInterval = 1000; // Start with 1 second
+
+        const pollForMongoDB = () => {
+            if (attempts >= maxAttempts) {
+                Console.error(`Failed to initialize MongoDB replica set after ${maxAttempts} attempts`);
+                return;
+            }
+
+            attempts++;
+            if (initializeReplicaSetWhenReady()) {
+                return; // Success
+            } else {
+                // Exponential backoff with a cap
+                const nextInterval = Math.min(pollInterval * Math.pow(1.5, attempts - 1), 10000);
+                Console.debug(`Retrying in ${nextInterval}ms (attempt ${attempts}/${maxAttempts})`);
+                setTimeout(pollForMongoDB, nextInterval);
+            }
+        };
+
+        // Start polling
+        pollForMongoDB();
+
+        return "created_new";
+    }
+
+    /**
      * Start or restart MQTT broker container
      * @param {string} [_brokerName="mqtt-alkimia-broker"] - Name for the broker container
      * @returns {string} - Result of operation
@@ -384,6 +505,7 @@ export default function DockerManager(_args = null) {
     instance.waitForContainerReady = waitForContainerReady;
     instance.waitUntilContainerIsHealthy = waitUntilContainerIsHealthy;
     instance.manageContainer = manageContainer;
+    instance.startMongoDb = startMongoDb;
     instance.startMosquittoBroker = startMosquittoBroker;
     instance.stopAndRemoveContainer = stopAndRemoveContainer;
 
