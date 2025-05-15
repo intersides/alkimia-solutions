@@ -6,18 +6,13 @@ import mqtt from "mqtt";
 export default function MqttService(_args){
     let instance = Object.create(MqttService.prototype, {});
 
-    let {
-        brokerUrl
-    } = Utilities.transfer(_args, {
-        brokerUrl:null
-    });
+    let {} = Utilities.transfer(_args, {});
 
     let  mqttClient = null;
 
-
     function _init(){
-        Console.debug("DEBUG: url", brokerUrl);
-        mqttClient = mqtt.connect(brokerUrl);
+        Console.debug("DEBUG: url", MqttService.envVars.uri);
+        mqttClient = mqtt.connect(MqttService.envVars.uri);
         _registerEventListeners();
 
         return instance;
@@ -78,4 +73,7 @@ MqttService.getSingleton = function(_args){
         singleTone = MqttService(_args);
     }
     return singleTone;
+};
+MqttService.envVars = {
+    uri:null
 };

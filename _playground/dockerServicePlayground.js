@@ -1,18 +1,13 @@
-import fs from "node:fs";
 import DockerService from "../DockerService.js";
-import {parseEnvFile} from "@workspace/common";
+import dotenv from "dotenv";
 import path from "path";
 import {fileURLToPath} from "url";
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
-
+dotenv.config();
 console.log("_projectRootPath", _projectRootPath);
 
-let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"});
-let envObj = parseEnvFile(envContent);
-console.log(envObj);
-
 let dockerService = DockerService.getInstance({
-    envVars:envObj
+    envVars:process.env
 });
 
 console.debug(dockerService);

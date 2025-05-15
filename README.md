@@ -28,7 +28,8 @@ intersides-workspace/
 │   └── node/          # Node.js-specific libraries
 ├── modules/
 │   ├── ContainerMonitorService.js  # Service for monitoring Docker container performance
-│   └── MqttService.js  # Service for MQTT communication between components
+│   ├── MqttService.js  # Service for MQTT communication between components
+│   └── MongoDbService.js  # Service for MongoDB database operations
 ├── services/
 │   ├── LoadBalancer/  # Load balancing service for scaling strategies
 │   └── mongodb/       # MongoDB data and configuration files
@@ -97,6 +98,17 @@ The `MqttService` module provides:
 3. Topic subscription and publishing capabilities
 4. Error handling and reconnection logic
 5. Service discovery and status broadcasting
+
+### MongoDB Database Service
+
+The `MongoDbService` module provides:
+
+1. Centralized database connection management
+2. Session tracking for scaling strategies
+3. Service registry for available instances
+4. Connection pooling and timeout configuration
+5. Automatic index creation for performance
+6. Environment-based configuration
 
 ### MongoDB Database Integration
 
@@ -183,6 +195,25 @@ Add the following entries to your `/etc/hosts` file:
 127.0.0.1 mongodb.alkimia.localhost
 ```
 
+### Environment Variables
+
+The project uses a `.env` file for configuration. Key variables include:
+
+```
+ENV=development
+PROTOCOL=https
+DOMAIN=alkimia.localhost
+LOCAL_IP=0.0.0.0
+DOCKER_FILE_PORT=3000
+FRONTEND_SUBDOMAIN=app
+FRONTEND_PORT=3000
+BACKEND_SUBDOMAIN=server
+BACKEND_PORT=7070
+MONGO_DB_NAME=alkimia
+MONGO_DB_URI=mongodb://mongoadmin:secret@localhost:27017/?replicaSet=rs0
+MQTT_BROKER_URL=mqtt://mqtt.alkimia.localhost/
+```
+
 ### Starting the Development Environment
 
 You can start the environment using the custom Node.js proxy with lazy loading:
@@ -199,6 +230,7 @@ In development mode, the services are available at:
 - Backend: https://server.alkimia.localhost
 - Load Balancer: https://balancer.alkimia.localhost
 - MongoDB: mongodb://mongoadmin:secret@mongodb.alkimia.localhost:27017
+- MQTT Broker: mqtt://mqtt.alkimia.localhost
 
 ## Container Resource Management
 
@@ -252,6 +284,28 @@ The replica set is automatically initialized with exponential backoff polling to
 const initReplicaSet = `docker exec ${_containerName} mongosh --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
 ```
 
+## Database Service
+
+The MongoDbService provides a centralized way to interact with MongoDB:
+
+```javascript
+// Example usage
+import MongoDbService from './modules/MongoDbService.js';
+
+// Configure the service
+MongoDbService.envVars = {
+  uri: process.env.MONGO_DB_URI,
+  dbName: process.env.MONGO_DB_NAME
+};
+
+// Get the singleton instance
+const dbService = MongoDbService.getSingleton();
+
+// The service automatically creates collections and indexes for:
+// - sessions: Tracking user sessions across instances
+// - services: Registry of available service instances
+```
+
 ## Stress Testing
 
 The stress-agent provides endpoints to generate controlled load on the backend services:
@@ -296,9 +350,12 @@ Services communicate with each other using MQTT for real-time messaging:
 // Example from MqttService
 import MqttService from './modules/MqttService.js';
 
-const mqttService = MqttService.getSingleton({
-  brokerUrl: "mqtt://mqtt-alkimia-broker/"
-});
+// Configure the service
+MqttService.envVars = {
+  uri: process.env.MQTT_BROKER_URL
+};
+
+const mqttService = MqttService.getSingleton();
 
 // Publishing messages
 mqttService.publish("services/network", {
@@ -330,22 +387,6 @@ In production mode:
 - SSL certificates should be properly configured
 - Environment variables from .env are used for configuration
 - PM2 process manager ensures service reliability
-
-## Environment Variables
-
-Key environment variables in the `.env` file:
-
-```
-ENV=production|development
-PROTOCOL=https
-DOMAIN=alkimia.localhost
-LOCAL_IP=0.0.0.0
-DOCKER_FILE_PORT=3000
-FRONTEND_SUBDOMAIN=app
-FRONTEND_PORT=3000
-BACKEND_SUBDOMAIN=server
-BACKEND_PORT=7070
-```
 
 ## Development Workflow
 
@@ -401,3 +442,4 @@ If MongoDB fails to initialize properly:
 2. Verify the keyFile permissions are set correctly (should be 400)
 3. Ensure the replica set initialization is successful
 4. Check network connectivity between containers
+5. Verify authentication credentials are correct in connection strings

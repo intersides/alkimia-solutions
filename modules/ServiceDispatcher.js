@@ -1,10 +1,14 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import Console from "@intersides/console";
 
-
+/**
+ *
+ * @param _args
+ * @return {*}
+ * @constructor
+ */
 export default function ServiceDispatcher(_args=null){
-    const instance = Object.create(ServiceDispatcher.prototype, {});
-
+    let instance = Object.create(ServiceDispatcher.prototype, {});
 
 
     const { manifest } = Utilities.transfer(_args, {
@@ -28,6 +32,12 @@ ServiceDispatcher.getSingleton = function(_params){
         _singleton = ServiceDispatcher(_params);
     }
     return _singleton;
+};
+
+ServiceDispatcher.ServiceId = {
+    MONGO_DB:"mongodb-alkimia-storage",
+    MQTT_BROKER:"mqtt-alkimia-broker",
+    LOAD_BALANCER:"alkimia-load-balancer"
 };
 
 

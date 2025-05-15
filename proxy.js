@@ -4,8 +4,8 @@ import fs from "node:fs";
 import path from "path";
 import {fileURLToPath} from "url";
 import DockerManager from "./DockerManager.js";
-import {parseEnvFile} from "@workspace/common";
 import Console from "@intersides/console";
+import dotenv from "dotenv";
 import { WebSocketServer } from "ws";
 import * as net from "node:net";
 import manifest from "./services-manifest.js";
@@ -13,6 +13,9 @@ import ServiceDispatcher from "./modules/ServiceDispatcher.js";
 import ContainerMonitorService from "./modules/ContainerMonitorService.js";
 import {HttpErrorStatus} from "@workspace/common/enums.js";
 import MqttService from "./modules/MqttService.js";
+import MongoDbService from "./modules/MongoDbService.js";
+
+dotenv.config();
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,9 +25,16 @@ const certPath = path.join(_projectRootPath, "./certs/fullchain.pem");
 const key = fs.readFileSync(keyPath, {encoding: "utf-8"});
 const cert = fs.readFileSync(certPath, {encoding: "utf-8"});
 
-let envContent = fs.readFileSync(`${_projectRootPath}/.env`, {encoding:"utf-8"});
-let envVars = parseEnvFile(envContent);
-Console.log("environment variables:", envVars);
+Console.info("environment variables:", process.env);
+
+MqttService.envVars = {
+    uri: process.env.MQTT_BROKER_URL
+};
+
+MongoDbService.envVars = {
+    uri: process.env.MONGO_DB_URI,
+    dbName: process.env.MONGO_DB_NAME
+};
 
 let containerMonitorService = ContainerMonitorService({});
 
@@ -34,7 +44,7 @@ let serviceDispatcher = ServiceDispatcher({
 
 let dockerManager = DockerManager.getInstance({
     root:_projectRootPath,
-    envVars
+    envVars:process.env
 });
 dockerManager.on("container-started", function(containerInfo){
     Console.info(`onEvent Container ${containerInfo.name} has started`);
@@ -267,74 +277,73 @@ Promise.all([
 
     new Promise((resolve, reject) => {
 
-        let mongoDbName = "mongodb-alkimia-storage";
-
+        let serviceId = ServiceDispatcher.ServiceId.MONGO_DB;
 
         try {
-            const result = dockerManager.startMongoDb(mongoDbName);
+            const result = dockerManager.startMongoDb(serviceId);
             Console.debug(`MongoDB operation result: ${result}`);
 
             if (result === "already_running") {
-                resolve(`Service: ${mongoDbName} is already running`);
+                resolve(serviceId);
             } else {
-                dockerManager.waitUntilContainerIsHealthy(mongoDbName)
+                dockerManager.waitUntilContainerIsHealthy(serviceId)
                     .then(() => {
-                        resolve(`Container ${mongoDbName} is now running and healthy`);
+                        resolve(serviceId);
                     })
                     .catch(err => {
                         Console.error(err.message);
-                        reject(`Failed waiting for ${mongoDbName} to become healthy`);
+                        reject(`Failed waiting for ${serviceId} to become healthy`);
                     });
             }
         } catch (err) {
             Console.error(err.message);
-            reject(`Failed to start ${mongoDbName}: ${err.message}`);
+            reject(`Failed to start ${serviceId}: ${err.message}`);
         }
 
     }),
 
     new Promise((resolve, reject)=>{
 
-        let mqttBrokerName = "mqtt-alkimia-broker";
+        let serviceId = ServiceDispatcher.ServiceId.MQTT_BROKER;
 
         // Start or ensure MQTT broker is running
         try{
-            const result = dockerManager.startMosquittoBroker(mqttBrokerName);
+            const result = dockerManager.startMosquittoBroker(serviceId);
             Console.debug(`MQTT broker operation result:${result}`);
 
             if(result === "alredy_running"){
-                resolve(`Service: ${mqttBrokerName} is already running`);
+                resolve(serviceId);
             }
             else{
                 // For both "started_existing" and "created_new" cases, wait for readiness
-                dockerManager.waitForContainerReady(mqttBrokerName)
+                dockerManager.waitForContainerReady(serviceId)
                     .then(() => {
-                        resolve(`Container ${mqttBrokerName} is now running`);
+                        resolve(serviceId);
                     })
                     .catch(err => {
                         Console.error(err.message);
-                        reject(`Failed waiting for ${mqttBrokerName}`);
+                        reject(`Failed waiting for ${serviceId}`);
                     });
             }
         }catch (err) {
             Console.error(err.message);
-            reject(`Failed to start ${mqttBrokerName}: ${err.message}`);
+            reject(`Failed to start ${serviceId}: ${err.message}`);
         }
 
     }),
 
     new Promise((resolve, reject)=>{
 
-        let serviceName = "alkimia-load-balancer";
+        let serviceId = ServiceDispatcher.ServiceId.LOAD_BALANCER;
 
         try{
-            dockerManager.checkContainerRunning(serviceName).then((isRunning) => {
-                Console.debug("service:", serviceName, "is running:", isRunning);
+            dockerManager.checkContainerRunning(serviceId).then((isRunning) => {
+                Console.debug("service:", serviceId, "is running:", isRunning);
                 if(!isRunning){
 
                     dockerManager.manageContainer({
                         name: "load-balancer",
-                        container_name: serviceName,
+                        container_name: serviceId,
                         subdomain: "balancer",
                         location: "services/LoadBalancer",
                         port: 7001,
@@ -342,32 +351,32 @@ Promise.all([
                         forceRestart:false
                     });
 
-                    dockerManager.waitForContainerReady(serviceName).then(() => {
-                        Console.debug(`container ${serviceName} is now running`);
+                    dockerManager.waitForContainerReady(serviceId).then(() => {
+                        Console.debug(`container ${serviceId} is now running`);
 
-                        dockerManager.waitUntilContainerIsHealthy(serviceName).then((isHealthy)=>{
+                        dockerManager.waitUntilContainerIsHealthy(serviceId).then((isHealthy)=>{
                             if(isHealthy){
-                                Console.debug(`container ${serviceName} is now ready`);
-                                resolve(`Container ${serviceName} is now running`);
+                                Console.debug(`container ${serviceId} is now ready`);
+                                resolve(serviceId);
                             }
                             else{
-                                Console.error(`container ${serviceName} didn't got into ready state`);
-                                reject(`container ${serviceName} didn't got into ready state`);
+                                Console.error(`container ${serviceId} didn't got into ready state`);
+                                reject(`container ${serviceId} didn't got into ready state`);
                             }
                         }).catch(err=>{
                             Console.error(err);
-                            reject(`container ${serviceName} exception: ${err.message}`);
+                            reject(`container ${serviceId} exception: ${err.message}`);
                         });
 
                     }).catch(err => {
                         Console.error(err);
-                        reject(`container ${serviceName} exception: ${err.message}`);
+                        reject(`container ${serviceId} exception: ${err.message}`);
                     });
 
                 }
                 else{
-                    resolve(`Service: ${serviceName} is already running`);
-                    resolve(serviceName);
+                    Console.debug(`Service: ${serviceId} is already running`);
+                    resolve(serviceId);
 
                 }
 
@@ -385,14 +394,16 @@ Promise.all([
     })
 
 ]).then(resolved=>{
-    Console.info("resolved:", resolved);
+
+    Console.info("resolved: service IDS:", resolved);
 
     httpsServer.listen(443, () => {
         Console.log("HTTPS proxy server listening on port 443");
 
-        MqttService.getSingleton({
-            brokerUrl:"mqtt://mqtt.alkimia.localhost/"
-        });
+        MqttService.getSingleton();
+
+        Console.debug("about to retireve mongodb");
+        MongoDbService.getSingleton();
 
 
     });

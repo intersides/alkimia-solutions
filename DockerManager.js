@@ -405,12 +405,12 @@ export default function DockerManager(_args = null) {
         const initializeReplicaSetWhenReady = () => {
             try {
                 // Check if MongoDB is responding to commands
-                const checkCommand = `docker exec ${_containerName} mongosh --eval 'db.runCommand({ ping: 1 })' --quiet`;
+                const checkCommand = `docker exec ${_containerName} mongosh -u mongoadmin -p secret --eval 'db.runCommand({ ping: 1 })' --quiet`;
                 execSync(checkCommand, { stdio: "pipe" });
 
-                // MongoDB is ready, initialize replica set
+                // MongoDB is ready, initializing the replica set
                 Console.info("MongoDB is ready, initializing replica set...");
-                const initReplicaSet = `docker exec ${_containerName} mongosh --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
+                const initReplicaSet = `docker exec ${_containerName} mongosh -u mongoadmin -p secret --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
                 execSync(initReplicaSet, { stdio: "inherit" });
                 Console.info("MongoDB replica set initialized successfully");
 

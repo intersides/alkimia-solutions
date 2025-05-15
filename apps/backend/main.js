@@ -1,4 +1,4 @@
-import {sayHello, printServerInfo, parseEnvFile} from "@workspace/common";
+import {printServerInfo} from "@workspace/common";
 import {getSystemInfo} from "@workspace/node";
 import CryptoService from "@workspace/common/services/CryptoService.js";
 import path from "node:path";
