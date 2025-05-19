@@ -1,0 +1,26 @@
+---
+title: Execution flow
+---
+%%{init: {'flowchart': {'useMaxWidth': false, 'rankSpacing': 100, 'nodeSpacing': 100}}}%%
+%% TD:top down
+flowchart TD
+    style systemException fill:red,color:white
+    style MongoDbContainer fill:#099cec,stroke:#333,stroke-width:2px,color:white
+
+    Start[Promise.all] --> MongoDbContainer["MongoDB Database"];
+    Start --> MqttBroker(MQTT Broker);
+    Start --> LoadBalancer(LoadBalancer Service);
+
+    MongoDbContainer --> Promises{All resolved ?};
+    LoadBalancer --> Promises;
+    MqttBroker --> Promises;
+
+    Promises -->|then|Converge(resolved)
+    Promises -->|catch|Throw(exception)
+    Throw --> systemException[Error Exception]
+
+    Converge --> Proxy[http.listen:443]
+    Proxy --> MongoDbService(MongoDb Service)
+    Proxy --> MqttService(MQTT Service)
+
+    MongoDbService <-.-> MongoDbContainer

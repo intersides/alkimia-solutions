@@ -1,0 +1,11 @@
+sequenceDiagram
+    actor Client
+    actor Proxy
+    actor ServiceDispatcher
+    actor Monitor
+
+    Client->>Proxy: https://service1.domain.com
+    Proxy->>ServiceDispatcher: Report request start
+    Note right of Monitor: Begins tracking container CPU
+    Monitor-->>Proxy: Resource OK
+    Proxy-->>Client: 200 OK

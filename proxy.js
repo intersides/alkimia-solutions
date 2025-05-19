@@ -36,7 +36,9 @@ MongoDbService.envVars = {
     dbName: process.env.MONGO_DB_NAME
 };
 
-let containerMonitorService = ContainerMonitorService({});
+let containerMonitorService = ContainerMonitorService({
+    mongoDbService:MongoDbService.getSingleton()
+});
 
 let serviceDispatcher = ServiceDispatcher({
     manifest
@@ -56,12 +58,7 @@ dockerManager.on("running", function(containerInfo){
 
     if(containerInfo.name === "alkimia-backend"){
 
-        containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (reading)=>{
-            Console.info("monitoring reading:", reading);
-            if(reading.panic){
-                Console.warn("PANIC in ", containerInfo.name);
-            }
-        });
+        containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
     }
 
 });
@@ -382,13 +379,13 @@ Promise.all([
 
             }).catch(err => {
                 Console.error(err);
-                reject(`container ${serviceName} exception: ${err.message}`);
+                reject(`container ${serviceId} exception: ${err.message}`);
 
             });
         }catch (err) {
             Console.error(err.message);
-            reject(`Failed to start ${serviceName}: ${err.message}`);
-            reject(`container ${serviceName} exception: ${err.message}`);
+            reject(`Failed to start ${serviceId}: ${err.message}`);
+            reject(`container ${serviceId} exception: ${err.message}`);
         }
 
     })
@@ -402,7 +399,7 @@ Promise.all([
 
         MqttService.getSingleton();
 
-        Console.debug("about to retireve mongodb");
+        Console.debug("about to retrieve mongodb");
         MongoDbService.getSingleton();
 
 

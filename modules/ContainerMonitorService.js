@@ -2,6 +2,7 @@ import { exec, execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import Console from "@intersides/console";
 import {utilities as Utilities} from "@alkimia/lib";
+import MongoDbService from "./MongoDbService.js";
 
 /**
  * Service for monitoring Docker container performance metrics
@@ -10,9 +11,14 @@ export default function ContainerMonitorService(_args=null) {
     const instance = Object.create(ContainerMonitorService.prototype);
     const emitter = new EventEmitter();
 
-    const cpuMonitoringSubscribers = {};
-
-    const {} = Utilities.transfer(_args, {});
+    const {
+        /**
+         * @type {MongoDbService}
+         */
+        mongoDbService
+    } = Utilities.transfer(_args, {
+        mongoDbService:null
+    });
 
     /**
      * Get CPU usage percentage for a running container
@@ -116,16 +122,9 @@ export default function ContainerMonitorService(_args=null) {
      * @param {number} intervalMs - Monitoring interval in milliseconds
      * @param {number} durationMs - Total monitoring duration in milliseconds (0 for indefinite)
      * @param {function} callback - Callback function(reading)
-     * @returns {object} - Monitor control object with stop() method
+     * @returns {object} - Monitor Control Object with stop() method
      */
     function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback, panicThreshold=80) {
-
-        if(cpuMonitoringSubscribers[containerName]){
-            return Console.log(`Already monitoring ${containerName}`);
-        }
-        else{
-            Console.log(`Starting CPU monitoring for ${containerName}`);
-        }
 
         const startTime = Date.now();
         const monitorData = {
@@ -146,32 +145,30 @@ export default function ContainerMonitorService(_args=null) {
             const cpuPercent = await getContainerCpuUsage(containerName);
             const timestamp = Date.now();
 
-
             const reading = {
                 container:containerName,
                 cpuPercent,
                 timestamp,
-                panic:false,
+                panic:cpuPercent > panicThreshold,
                 elapsedMs: timestamp - startTime
             };
 
-            //consider to stop the container if the percentage has reached a panic threshold
-            if(cpuPercent > panicThreshold){
-                Console.warn("Panic Threshold reached !!!");
-                reading.panic = true;
-            }
+            if(reading.panic){
 
-            // Store the reading
+                Console.warn("a service state is into panic!");
+
+                //check for previous panic instances
+                let untreatedEvent = await mongoDbService.getEvent("service_panic", { container:reading.container, status:"UNTREATED" });
+                if(!untreatedEvent){
+                    mongoDbService.storeEvent("service_panic", {...reading, status:"UNTREATED"});
+                }
+                else{
+                    Console.info("untreatedEvent", untreatedEvent);
+                }
+            }
+            mongoDbService.upsertServiceState(reading);
+
             monitorData.readings.push(reading);
-
-            // Call the callback if provided
-            if (typeof callback === "function" && !cpuMonitoringSubscribers[containerName]) {
-                cpuMonitoringSubscribers[containerName] = callback;
-            }
-
-            if(cpuMonitoringSubscribers[containerName]){
-                cpuMonitoringSubscribers[containerName](reading);
-            }
 
             // Check if monitoring duration has elapsed
             if (durationMs > 0 && timestamp - startTime >= durationMs) {
@@ -210,7 +207,7 @@ export default function ContainerMonitorService(_args=null) {
      * @param {number} intervalMs - Monitoring interval in milliseconds
      * @param {number} durationMs - Total monitoring duration in milliseconds (0 for indefinite)
      * @param {function} callback - Callback function(reading)
-     * @returns {object} - Monitor control object with stop() method
+     * @returns {object} - Monitor Control Object with stop() method
      */
     function monitorContainerMemory(containerName, intervalMs = 1000, durationMs = 0, callback) {
         Console.log(`Starting memory monitoring for ${containerName}`);
@@ -241,11 +238,6 @@ export default function ContainerMonitorService(_args=null) {
                 elapsedMs: timestamp - startTime
             };
             monitorData.readings.push(reading);
-
-            // Call the callback if provided
-            if (typeof callback === "function") {
-                callback(reading);
-            }
 
             // Check if monitoring duration has elapsed
             if (durationMs > 0 && timestamp - startTime >= durationMs) {

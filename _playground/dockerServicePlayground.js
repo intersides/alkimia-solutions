@@ -12,7 +12,6 @@ let dockerService = DockerService.getInstance({
 
 console.debug(dockerService);
 
-// Listen for container ready event
 dockerService.on("container-started", (params) => {
     console.log(`Container ${params.name} is ready! Starting HTTPS proxy...`);
 

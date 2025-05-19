@@ -1,5 +1,5 @@
 import Utilities from "@alkimia/lib/src/Utilities.js";
-import {MongoClient} from "mongodb";
+import {MongoClient,  Collection} from "mongodb";
 import Console from "@intersides/console";
 
 /**
@@ -18,8 +18,12 @@ export default function MongoDbService(_args=null){
     let mongoClient = null,
         db = null;
 
-    let sessions = null;
-    let services = null;
+    /**
+     * MongoDb Collections (tables)
+     * @type { Collection<Document>|null }
+     */
+    let services = null,
+        events = null;
 
     function _init(){
         Console.debug("mongoDbUrl", MongoDbService.envVars.uri);
@@ -35,11 +39,12 @@ export default function MongoDbService(_args=null){
                 db = client.db(MongoDbService.envVars.dbName);
                 Console.log(`${MongoDbService.envVars.dbName} database has been set`);
 
-                sessions = db.collection("sessions");
-                await sessions.createIndex({ session: 1 }, { unique: true });
-
                 services = db.collection("services");
-                await services.createIndex({ name: 1 }, { unique: true });
+                events = db.collection("events");
+                const eventsChangeStream = events.watch();
+                eventsChangeStream.on("change", (change)=>{
+                    Console.warn("on change event triggered by the EVENTS collection", change);
+                });
 
 
             }
@@ -52,6 +57,82 @@ export default function MongoDbService(_args=null){
 
         return instance;
     }
+
+    function upsertServiceState(serviceState){
+        if(services){
+            services.findOneAndUpdate(
+                { container: serviceState.container }, // Filter: Match by 'container'
+                { $set: serviceState },                // Update: Set the full 'data' object
+                {
+                    upsert: true,
+                    returnDocument: "after"
+                }               // Insert the document if it doesn't exist
+            ).then((result) => {
+                Console.log("Upsert result:", result);
+            }).catch((err) => {
+                Console.error("Failed to perform upsert operation:", err);
+            });
+
+        }
+        else{
+            Console.warn("collection services is not ready");
+        }
+    }
+
+    async function _getEvent(_eventType, _filter){
+        if(events){
+
+            return await events.findOne({type:_eventType, ..._filter});
+
+
+            // if ((await events.countDocuments(_filter)) > 0) {
+            //
+            //     const cursor = events.find(_filter);//.sort(sortFields).project(projectFields);
+            //     for await (const doc of cursor) {
+            //         Console.log("doc:", doc);
+            //     }
+            //
+            // } else {
+            //     console.log("No documents found!");
+            // }
+
+            // events.find(
+            //     { type: _eventType, ..._filter }
+            // ).then((result) => {
+            //     Console.log("inserted event:", result);
+            // }).catch((err) => {
+            //     Console.error("Failed to perform insert operation:", err);
+            // });
+
+        }
+        else{
+            Console.warn("collection events is not ready");
+            return null;
+        }
+    }
+
+    function _storeEvent(_eventType, eventData){
+        if(events){
+            events.insertOne(
+                { type: _eventType, ...eventData },
+                {
+
+                }
+            ).then((result) => {
+                Console.log("inserted event:", result);
+            }).catch((err) => {
+                Console.error("Failed to perform insert operation:", err);
+            });
+
+        }
+        else{
+            Console.warn("collection events is not ready");
+        }
+    }
+
+    instance.getEvent = _getEvent;
+    instance.storeEvent = _storeEvent;
+    instance.upsertServiceState = upsertServiceState;
 
     return _init();
 }

@@ -29,7 +29,6 @@ export default function DockerManager(_args = null) {
             // Check if the container exists
             const existsCommand = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
             const existsResult = execSync(existsCommand, {encoding: "utf8"});
-
             if (parseInt(existsResult.trim()) === 0) {
                 return "not_exists";
             }
@@ -238,23 +237,23 @@ export default function DockerManager(_args = null) {
         }
 
         // Check container status
-        const containerStatus = getContainerStatus(name);
-        Console.debug(`Container ${name} status: ${containerStatus}`);
+        const containerStatus = getContainerStatus(container_name);
+        Console.debug(`Container ${container_name} container_status: ${containerStatus}`);
 
         // Handle based on status
         if (containerStatus === "running") {
             if (forceRestart) {
-                stopAndRemoveContainer(name);
+                stopAndRemoveContainer(container_name);
             } else {
-                Console.info(`Container ${name} is already running`);
+                Console.info(`Container ${container_name} is already running`);
                 return "already_running";
             }
         } else if (containerStatus === "stopped") {
             if (forceRestart) {
-                stopAndRemoveContainer(name);
+                stopAndRemoveContainer(container_name);
             } else {
-                Console.info(`Starting existing container ${name}`);
-                execSync(`docker start ${name}`, {stdio: "inherit"});
+                Console.info(`Starting existing container ${container_name}`);
+                execSync(`docker start ${container_name}`, {stdio: "inherit"});
                 return "started_existing";
             }
         }
@@ -319,7 +318,7 @@ export default function DockerManager(_args = null) {
         });
 
         emitter.emit("container-started", {
-            name: name,
+            name: container_name,
             env: envVars.ENV,
             domain: envVars.DOMAIN,
             port: port
@@ -331,6 +330,7 @@ export default function DockerManager(_args = null) {
     /**
      * Start or restart MongoDB container with replica set support
      * @param {string} [_containerName="mongodb-alkimia-storage"] - Name for the MongoDB container
+     * @param _networkName
      * @returns {string} - Result of operation
      */
     function startMongoDb(_containerName = "mongodb-alkimia-storage", _networkName = "alkimia-net") {
@@ -401,7 +401,7 @@ export default function DockerManager(_args = null) {
         // After starting the container, initialize the replica set when ready
         Console.info("Waiting for MongoDB to start before initializing replica set...");
 
-        // Function to check if MongoDB is ready and initialize replica set
+        // Function to check if MongoDB is ready and initialize a replica set
         const initializeReplicaSetWhenReady = () => {
             try {
                 // Check if MongoDB is responding to commands
@@ -509,7 +509,7 @@ export default function DockerManager(_args = null) {
     instance.startMosquittoBroker = startMosquittoBroker;
     instance.stopAndRemoveContainer = stopAndRemoveContainer;
 
-    // For backward compatibility
+
     instance.checkContainerRunning = async (containerName) => {
 
         let status = getContainerStatus(containerName);
