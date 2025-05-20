@@ -41,6 +41,7 @@ export default function MqttService(_args){
                 });
 
                 setTimeout(()=>{
+                    console.debug("DEBUG: about to ping");
                     mqttClient.publish("test/ping", "hello from proxy", {qos:2});
                 }, 5000);
 

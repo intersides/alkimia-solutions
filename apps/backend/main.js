@@ -92,6 +92,10 @@ Server.getInstance({
         routes: {
             "*":{
                 handler: (req) => {
+                    if (req.headers["user-agent"] === "Docker-Health-Check" || req.headers["x-source"] === "Docker") {
+                        //NOTE: docker HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail -H "User-Agent: Docker-Health-Check" -H "X-Source: Docker" -H "Content-Type: application/json" -H "Accept: application/json" http://localhost:3000/ping || exit 1
+                        return;//are muted
+                    }
                     Console.info("incoming:", req.url, "\n\t\twith payload", req.body);
                 }
             },
@@ -111,6 +115,15 @@ Server.getInstance({
                 }
             },
             GET: {
+                //used to allow Docker HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail http://localhost:3000/ping || exit 1
+                //to determine the health of the container. Just keep it
+                "/healthcheck": {
+                    isProtected: false,
+                    handler: () => HttpResponse({
+                        data: {msg: "ok"},
+                        mimeType:MimeType.JSON
+                    })
+                },
                 "/ping": {
                     isProtected: false,
                     handler: () => HttpResponse({

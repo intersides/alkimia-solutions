@@ -50,17 +50,13 @@ let dockerManager = DockerManager.getInstance({
 });
 dockerManager.on("container-started", function(containerInfo){
     Console.info(`onEvent Container ${containerInfo.name} has started`);
-
 });
 dockerManager.on("running", function(containerInfo){
-
     Console.info(`onEvent Container ${containerInfo.name} running`);
-
     if(containerInfo.name === "alkimia-backend"){
-
+        return Console.error("ERROR: containerMonitorService.monitorContainerCpu will be disabled");
         containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
     }
-
 });
 dockerManager.on("stopped", function(containerInfo){
     Console.warn(`onEvent Container ${containerInfo.name} stopped`);
@@ -327,68 +323,69 @@ Promise.all([
             reject(`Failed to start ${serviceId}: ${err.message}`);
         }
 
-    }),
-
-    new Promise((resolve, reject)=>{
-
-        let serviceId = ServiceDispatcher.ServiceId.LOAD_BALANCER;
-
-        try{
-            dockerManager.checkContainerRunning(serviceId).then((isRunning) => {
-                Console.debug("service:", serviceId, "is running:", isRunning);
-                if(!isRunning){
-
-                    dockerManager.manageContainer({
-                        name: "load-balancer",
-                        container_name: serviceId,
-                        subdomain: "balancer",
-                        location: "services/LoadBalancer",
-                        port: 7001,
-                        networkName:"alkimia-net",
-                        forceRestart:false
-                    });
-
-                    dockerManager.waitForContainerReady(serviceId).then(() => {
-                        Console.debug(`container ${serviceId} is now running`);
-
-                        dockerManager.waitUntilContainerIsHealthy(serviceId).then((isHealthy)=>{
-                            if(isHealthy){
-                                Console.debug(`container ${serviceId} is now ready`);
-                                resolve(serviceId);
-                            }
-                            else{
-                                Console.error(`container ${serviceId} didn't got into ready state`);
-                                reject(`container ${serviceId} didn't got into ready state`);
-                            }
-                        }).catch(err=>{
-                            Console.error(err);
-                            reject(`container ${serviceId} exception: ${err.message}`);
-                        });
-
-                    }).catch(err => {
-                        Console.error(err);
-                        reject(`container ${serviceId} exception: ${err.message}`);
-                    });
-
-                }
-                else{
-                    Console.debug(`Service: ${serviceId} is already running`);
-                    resolve(serviceId);
-
-                }
-
-            }).catch(err => {
-                Console.error(err);
-                reject(`container ${serviceId} exception: ${err.message}`);
-
-            });
-        }catch (err) {
-            Console.error(err.message);
-            reject(`Failed to start ${serviceId}: ${err.message}`);
-            reject(`container ${serviceId} exception: ${err.message}`);
-        }
-
     })
+
+    //NOTE: at the moment lets consider to comment out the LoadBalancer, because beside the fancy name is not doing much
+    // new Promise((resolve, reject)=>{
+    //
+    //     let serviceId = ServiceDispatcher.ServiceId.LOAD_BALANCER;
+    //
+    //     try{
+    //         dockerManager.checkContainerRunning(serviceId).then((isRunning) => {
+    //             Console.debug("service:", serviceId, "is running:", isRunning);
+    //             if(!isRunning){
+    //
+    //                 dockerManager.manageContainer({
+    //                     name: "load-balancer",
+    //                     container_name: serviceId,
+    //                     subdomain: "balancer",
+    //                     location: "services/LoadBalancer",
+    //                     port: 7001,
+    //                     networkName:"alkimia-net",
+    //                     forceRestart:false
+    //                 });
+    //
+    //                 dockerManager.waitForContainerReady(serviceId).then(() => {
+    //                     Console.debug(`container ${serviceId} is now running`);
+    //
+    //                     dockerManager.waitUntilContainerIsHealthy(serviceId).then((isHealthy)=>{
+    //                         if(isHealthy){
+    //                             Console.debug(`container ${serviceId} is now ready`);
+    //                             resolve(serviceId);
+    //                         }
+    //                         else{
+    //                             Console.error(`container ${serviceId} didn't got into ready state`);
+    //                             reject(`container ${serviceId} didn't got into ready state`);
+    //                         }
+    //                     }).catch(err=>{
+    //                         Console.error(err);
+    //                         reject(`container ${serviceId} exception: ${err.message}`);
+    //                     });
+    //
+    //                 }).catch(err => {
+    //                     Console.error(err);
+    //                     reject(`container ${serviceId} exception: ${err.message}`);
+    //                 });
+    //
+    //             }
+    //             else{
+    //                 Console.debug(`Service: ${serviceId} is already running`);
+    //                 resolve(serviceId);
+    //
+    //             }
+    //
+    //         }).catch(err => {
+    //             Console.error(err);
+    //             reject(`container ${serviceId} exception: ${err.message}`);
+    //
+    //         });
+    //     }catch (err) {
+    //         Console.error(err.message);
+    //         reject(`Failed to start ${serviceId}: ${err.message}`);
+    //         reject(`container ${serviceId} exception: ${err.message}`);
+    //     }
+    //
+    // })
 
 ]).then(resolved=>{
 
