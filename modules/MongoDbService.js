@@ -1,6 +1,7 @@
 import Utilities from "@alkimia/lib/src/Utilities.js";
 import {MongoClient,  Collection} from "mongodb";
 import Console from "@intersides/console";
+import DockerManager from "../DockerManager.js";
 
 /**
  *
@@ -12,8 +13,10 @@ export default function MongoDbService(_args=null){
 
     let instance = Object.create(MongoDbService.prototype, {});
 
-    const {} = Utilities.transfer(_args, {});
-
+    const {uri, dbName} = Utilities.transfer(_args, {
+        uri:null,
+        dbName:null
+    });
 
     let mongoClient = null,
         db = null;
@@ -23,24 +26,27 @@ export default function MongoDbService(_args=null){
      * @type { Collection<Document>|null }
      */
     let services = null,
+        monitors = null,
         events = null;
 
     function _init(){
-        Console.debug("mongoDbUrl", MongoDbService.envVars.uri);
+        Console.debug("mongoDbUrl", uri);
 
-        mongoClient = new MongoClient(MongoDbService.envVars.uri, {
+        mongoClient = new MongoClient(uri, {
             connectTimeoutMS: 3000,
             serverSelectionTimeoutMS:3000,
             socketTimeoutMS: 45000
         });
         mongoClient.connect().then( async function(client){
-            Console.log("db connected to", MongoDbService.envVars.uri);
-            if(Utilities.isNonemptyString(MongoDbService.envVars.dbName)){
-                db = client.db(MongoDbService.envVars.dbName);
-                Console.log(`${MongoDbService.envVars.dbName} database has been set`);
+            Console.log("db connected to", uri);
+            if(Utilities.isNonemptyString(dbName)){
+                db = client.db(dbName);
+                Console.log(`${dbName} database has been set`);
 
                 services = db.collection("services");
                 events = db.collection("events");
+                monitors = db.collection("monitors");
+
                 const eventsChangeStream = events.watch();
                 eventsChangeStream.on("change", (change)=>{
                     Console.warn("on change event triggered by the EVENTS collection", change);
@@ -55,13 +61,72 @@ export default function MongoDbService(_args=null){
             Console.error(connectionError);
         });
 
+        _registerEvents();
+
         return instance;
     }
+
+    function _registerEvents(){
+        DockerManager.on("container-created", function(containerInfo){
+            Console.log("onEvent Container has created", containerInfo);
+
+            upsertServiceState(containerInfo);
+        });
+
+        DockerManager.on("container-started", function(containerInfo){
+            Console.info("onEvent Container has started", containerInfo);
+            upsertServiceState(containerInfo);
+        });
+
+        DockerManager.on("running", function(containerInfo){
+            Console.info(`onEvent Container ${containerInfo.name} running`);
+            upsertServiceState(containerInfo);
+        });
+
+        DockerManager.on("stopped", function(containerInfo){
+            Console.warn(`onEvent Container ${containerInfo.name} stopped`);
+            upsertServiceState(containerInfo);
+        });
+        DockerManager.on("error", function(containerInfo){
+            Console.error(`onEvent Container ${containerInfo.name} error`);
+            upsertServiceState(containerInfo);
+        });
+        DockerManager.on("container-stopped", function(containerInfo){
+            Console.warn(`onEvent Container ${containerInfo.name} stopped`);
+            upsertServiceState(containerInfo);
+        });
+        DockerManager.on("container-died", function(containerInfo){
+            Console.warn(`onEvent Container ${containerInfo.name} died`);
+            upsertServiceState(containerInfo);
+        });
+        DockerManager.on("container-destroyed", function(containerInfo){
+            Console.error(`onEvent Container ${containerInfo.name} destroy`);
+            upsertServiceState(containerInfo);
+        });
+
+        DockerManager.on("not_exists", function(containerInfo){
+            Console.error(`onEvent Container not_exists ${containerInfo.name}`);
+        });
+
+        DockerManager.on("event", function(event){
+            Console.error("onEvent Container event:", event);
+            switch(event.type){
+                case "docker-container":{
+                    _storeEvent(event.type, event);
+                }break;
+                default:{
+                    Console.warn("not dealing with event type :", event.type);
+                }break;
+            }
+        });
+
+    }
+
 
     function upsertServiceState(serviceState){
         if(services){
             services.findOneAndUpdate(
-                { container: serviceState.container }, // Filter: Match by 'container'
+                { name: serviceState.name }, // Filter: Match by 'container'
                 { $set: serviceState },                // Update: Set the full 'data' object
                 {
                     upsert: true,
@@ -111,13 +176,33 @@ export default function MongoDbService(_args=null){
         }
     }
 
+    function _upsertMonitoringEvent(readingData){
+        if(monitors){
+            monitors.findOneAndUpdate(
+                { name: readingData.name }, // Filter: Match by 'container'
+                { $set: readingData },                // Update: Set the full 'data' object
+                {
+                    upsert: true,
+                    returnDocument: "after"
+                }               // Insert the document if it doesn't exist
+            ).then((result) => {
+                Console.log("Upsert result:", result);
+            }).catch((err) => {
+                Console.error("Failed to perform upsert operation:", err);
+            });
+
+        }
+        else{
+            Console.warn("collection monitors is not ready");
+        }
+    }
+
+
     function _storeEvent(_eventType, eventData){
         if(events){
             events.insertOne(
                 { type: _eventType, ...eventData },
-                {
-
-                }
+                {}
             ).then((result) => {
                 Console.log("inserted event:", result);
             }).catch((err) => {
@@ -133,6 +218,7 @@ export default function MongoDbService(_args=null){
     instance.getEvent = _getEvent;
     instance.storeEvent = _storeEvent;
     instance.upsertServiceState = upsertServiceState;
+    instance.upsertMonitoringEvent = _upsertMonitoringEvent;
 
     return _init();
 }
@@ -143,9 +229,4 @@ MongoDbService.getSingleton = function(_args=null){
         singleton = MongoDbService(_args);
     }
     return singleton;
-};
-
-MongoDbService.envVars = {
-    url:null,
-    dbName:null
 };

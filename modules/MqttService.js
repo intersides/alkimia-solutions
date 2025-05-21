@@ -6,13 +6,14 @@ import mqtt from "mqtt";
 export default function MqttService(_args){
     let instance = Object.create(MqttService.prototype, {});
 
-    let {} = Utilities.transfer(_args, {});
+    let { uri } = Utilities.transfer(_args, {
+        uri:null
+    });
 
     let  mqttClient = null;
 
     function _init(){
-        Console.debug("DEBUG: url", MqttService.envVars.uri);
-        mqttClient = mqtt.connect(MqttService.envVars.uri);
+        mqttClient = mqtt.connect(uri);
         _registerEventListeners();
 
         return instance;
@@ -22,7 +23,6 @@ export default function MqttService(_args){
         if(mqttClient){
             mqttClient.on("connect", () => {
                 Console.debug("[PROXY] MQTT connected");
-
 
                 mqttClient.subscribe("test/ping", (err) => {
                     if (err) {
@@ -75,6 +75,4 @@ MqttService.getSingleton = function(_args){
     }
     return singleTone;
 };
-MqttService.envVars = {
-    uri:null
-};
+

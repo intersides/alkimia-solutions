@@ -5,18 +5,133 @@ import path from "node:path";
 import Console from "@intersides/console";
 import fs from "node:fs";
 
-// Get the current file's directory name
-
 export default function DockerManager(_args = null) {
     const instance = Object.create(DockerManager.prototype);
-    const {root, envVars} = Utilities.transfer(_args, {
+    const {root, envVars, serviceDispatcher} = Utilities.transfer(_args, {
         root:null,
-        envVars: null
+        envVars: null,
+        serviceDispatcher:null
     });
-    const emitter = new EventEmitter();
 
     function _init() {
+        listenToContainerEvents();
         return instance;
+    }
+
+    function listenToContainerEvents() {
+        const eventCommand = "docker events --format '{{json .}}'";
+
+        const child = exec(eventCommand);
+
+        child.stdout.on("data", (data) => {
+            try {
+                const lines = data.trim().split("\n");
+                for (const line of lines) {
+
+
+                    let event = null;
+                    try{
+                        event = JSON.parse(line);
+                    }
+                    catch(e){
+                        Console.error(`failed to parse docker data event {${e.message}} for entry:`, line );
+                    }
+
+                    if(event){
+                        if (event.Type === "container" && [
+                            "create",
+                            "start",
+                            "restart",
+                            "pause",
+                            "destroy",
+                            "stop",
+                            "die",
+                            "kill",
+                            "oom"
+                        ].includes(event.Action)) {
+                            const name = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
+
+                            const eventTime = new Date(event.timeNano / 1e6); // to milliseconds
+
+                            Console.log(`[DockerService] Container ${name} ${event.Action}`);
+                            DockerManager.emitter.emit("event", {
+                                type:"docker-container",
+                                timestamp: eventTime,
+                                data:{
+                                    name,
+                                    action: event.Action
+                                }
+                            });
+
+
+                            let serviceManifest = serviceDispatcher.getService(name);
+
+                            let containerInfo = {
+                                ...serviceManifest,
+                                env: envVars.ENV,
+                                state:event.Action,
+                                domain: envVars.DOMAIN,
+                                id: event.ID,
+                                timestamp: eventTime
+                            };
+
+                            switch(event.Action){
+                                case "create":{
+                                    DockerManager.emitter.emit("container-created", containerInfo);
+                                }break;
+
+                                case "restart":{
+                                    DockerManager.emitter.emit("container-restarted", containerInfo);
+                                }break;
+
+                                case "start":{
+                                    DockerManager.emitter.emit("container-started", containerInfo);
+                                }break;
+
+                                case "kill":{
+                                    DockerManager.emitter.emit("container-killed", containerInfo);
+                                }break;
+
+                                case "stop":{
+                                    DockerManager.emitter.emit("container-stopped", containerInfo);
+                                }break;
+
+                                case "destroy":{
+                                    DockerManager.emitter.emit("container-destroyed", containerInfo);
+                                }break;
+
+                                case "die":{
+                                    DockerManager.emitter.emit("container-died", containerInfo);
+                                }break;
+
+                                default:{
+                                    Console.warn("not dealing with docker event :", event.Action);
+                                }break;
+                            }
+
+                            // if(containerInfo.monitored){
+                            //     containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
+                            //
+                            // }
+
+
+                        }
+                    }
+
+
+                }
+            } catch (e) {
+                Console.warn("[DockerService] Failed to parse docker event:", e);
+            }
+        });
+
+        child.stderr.on("data", (err) => {
+            Console.error("[DockerService] Error from docker events:", err);
+        });
+
+        child.on("exit", (code) => {
+            Console.error(`[DockerService] docker events process exited with code ${code}`);
+        });
     }
 
     /**
@@ -149,7 +264,7 @@ export default function DockerManager(_args = null) {
                 const status = getContainerStatus(containerName);
                 Console.debug("DEBUG: status", status);
 
-                emitter.emit(status, {
+                DockerManager.emitter.emit(status, {
                     name: containerName,
                     env: envVars.ENV,
                     domain: envVars.DOMAIN
@@ -317,7 +432,7 @@ export default function DockerManager(_args = null) {
             stdio: "inherit"
         });
 
-        emitter.emit("container-started", {
+        DockerManager.emitter.emit("container-started", {
             name: container_name,
             env: envVars.ENV,
             domain: envVars.DOMAIN,
@@ -514,7 +629,7 @@ export default function DockerManager(_args = null) {
 
         let status = getContainerStatus(containerName);
 
-        emitter.emit(status, {
+        DockerManager.emitter.emit(status, {
             name: containerName,
             env: envVars.ENV,
             domain: envVars.DOMAIN
@@ -526,9 +641,6 @@ export default function DockerManager(_args = null) {
     };
 
     // Event handling
-    instance.on = (event, listener) => emitter.on(event, listener);
-    instance.off = (event, listener) => emitter.off(event, listener);
-    instance.once = (event, listener) => emitter.once(event, listener);
 
     return _init();
 }
@@ -546,3 +658,9 @@ DockerManager.getSingleton = function(_args = null) {
 DockerManager.getInstance = function(_args = null) {
     return DockerManager(_args);
 };
+
+DockerManager.emitter = new EventEmitter();
+DockerManager.on = (event, listener) => DockerManager.emitter.on(event, listener);
+DockerManager.off = (event, listener) => DockerManager.emitter.off(event, listener);
+DockerManager.once = (event, listener) => DockerManager.emitter.once(event, listener);
+

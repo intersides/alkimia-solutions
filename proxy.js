@@ -27,47 +27,28 @@ const cert = fs.readFileSync(certPath, {encoding: "utf-8"});
 
 Console.info("environment variables:", process.env);
 
-MqttService.envVars = {
-    uri: process.env.MQTT_BROKER_URL
-};
-
-MongoDbService.envVars = {
-    uri: process.env.MONGO_DB_URI,
-    dbName: process.env.MONGO_DB_NAME
-};
-
-let containerMonitorService = ContainerMonitorService({
-    mongoDbService:MongoDbService.getSingleton()
-});
-
 let serviceDispatcher = ServiceDispatcher({
     manifest
 });
 
-let dockerManager = DockerManager.getInstance({
-    root:_projectRootPath,
-    envVars:process.env
-});
-dockerManager.on("container-started", function(containerInfo){
-    Console.info(`onEvent Container ${containerInfo.name} has started`);
-});
-dockerManager.on("running", function(containerInfo){
-    Console.info(`onEvent Container ${containerInfo.name} running`);
-    if(containerInfo.name === "alkimia-backend"){
-        return Console.error("ERROR: containerMonitorService.monitorContainerCpu will be disabled");
-        containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
-    }
-});
-dockerManager.on("stopped", function(containerInfo){
-    Console.warn(`onEvent Container ${containerInfo.name} stopped`);
-});
-dockerManager.on("error", function(containerInfo){
-    Console.error(`onEvent Container ${containerInfo.name} error`);
-});
-dockerManager.on("not_exists", function(containerInfo){
-    Console.error(`onEvent Container not_exists ${containerInfo.name}`);
+let mqttService = MqttService({
+    uri: process.env.MQTT_BROKER_URL
 });
 
+let mongoDbService = MongoDbService({
+    uri: process.env.MONGO_DB_URI,
+    dbName: process.env.MONGO_DB_NAME
+});
+
+let dockerManager = DockerManager.getInstance({
+    root:_projectRootPath,
+    envVars:process.env,
+    serviceDispatcher
+});
+
+let containerMonitorService = ContainerMonitorService({
+    mongoDbService
+});
 
 // HTTPS proxy (port 443) with SSL termination
 const sslOptions = {
@@ -393,13 +374,6 @@ Promise.all([
 
     httpsServer.listen(443, () => {
         Console.log("HTTPS proxy server listening on port 443");
-
-        MqttService.getSingleton();
-
-        Console.debug("about to retrieve mongodb");
-        MongoDbService.getSingleton();
-
-
     });
 
 }).catch(failures=>{

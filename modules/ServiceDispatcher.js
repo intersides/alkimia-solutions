@@ -10,7 +10,6 @@ import Console from "@intersides/console";
 export default function ServiceDispatcher(_args=null){
     let instance = Object.create(ServiceDispatcher.prototype, {});
 
-
     const { manifest } = Utilities.transfer(_args, {
         manifest:null
     });
@@ -20,8 +19,33 @@ export default function ServiceDispatcher(_args=null){
         return instance;
     }
 
-    instance.httpRouting = manifest?.httpRouting;
-    instance.wssRouting = manifest?.wssRouting;
+    instance.getService = function(_serviceName){
+        return manifest.services[_serviceName];
+    };
+
+    instance.httpRouting = [
+        {
+            //NOTE: this might be not secure
+            match: (req) => {
+                return req.url.startsWith("/api/")
+                    || req.headers.host === "server.alkimia.localhost";
+            },
+            target: manifest.services["alkimia-backend"]
+        },
+        {
+            match: (req) => req.headers.host === "app.alkimia.localhost",
+            target:manifest.services["alkimia-frontend"]
+        }
+
+    ];
+    instance.wssRouting = [
+        {
+            match: (req) => req.headers.host === "mqtt.alkimia.localhost",
+            target:manifest.services["mqtt-alkimia-broker"]
+
+        }
+    ];
+
 
     return _init();
 }

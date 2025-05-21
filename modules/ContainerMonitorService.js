@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import Console from "@intersides/console";
 import {utilities as Utilities} from "@alkimia/lib";
 import MongoDbService from "./MongoDbService.js";
+import DockerManager from "../DockerManager.js";
 
 /**
  * Service for monitoring Docker container performance metrics
@@ -19,6 +20,38 @@ export default function ContainerMonitorService(_args=null) {
     } = Utilities.transfer(_args, {
         mongoDbService:null
     });
+
+    let cpuMonitoringIntervals = {};
+
+    function _init(){
+        _registerEventListeners();
+        return instance;
+    }
+
+    function _registerEventListeners(){
+
+        DockerManager.on("container-started", function(containerInfo){
+            Console.info(`onEvent  container-started: ${containerInfo.name}`);
+            if(containerInfo.monitored){
+                Console.info(`about to start cpu monitoring for : ${containerInfo.name}`);
+                monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
+            }
+        });
+
+        DockerManager.on("container-killed", function(containerInfo){
+            Console.info(`onEvent  container-killed: ${containerInfo.name}`);
+            if(containerInfo.monitored){
+                Console.warn(`about to stop cpu monitoring for : ${containerInfo.name}`);
+                stopMonitoringContainerCpu(containerInfo.name, (monitoringIntervalRef)=>{
+                    Console.debug(`Monitoring stopped for ${monitoringIntervalRef} monitoringIntervalRef:`, monitoringIntervalRef);
+                });
+            }
+
+        });
+
+    }
+
+
 
     /**
      * Get CPU usage percentage for a running container
@@ -116,6 +149,14 @@ export default function ContainerMonitorService(_args=null) {
         });
     }
 
+
+    function stopMonitoringContainerCpu(containerName, _callback){
+        clearInterval(cpuMonitoringIntervals[containerName]);
+        if(_callback){
+            _callback(cpuMonitoringIntervals[containerName]);
+        }
+    }
+
     /**
      * Monitor container CPU usage at regular intervals
      * @param {string} containerName - Name of the container to monitor
@@ -135,10 +176,9 @@ export default function ContainerMonitorService(_args=null) {
             isRunning: true
         };
 
-        // Create monitoring interval
-        const intervalId = setInterval(async () => {
+        cpuMonitoringIntervals[containerName] = setInterval(async () => {
             if (!monitorData.isRunning) {
-                clearInterval(intervalId);
+                stopMonitoringContainerCpu(containerName);
                 return;
             }
 
@@ -166,14 +206,15 @@ export default function ContainerMonitorService(_args=null) {
                     Console.info("untreatedEvent", untreatedEvent);
                 }
             }
-            mongoDbService.upsertServiceState(reading);
+
+            mongoDbService.upsertMonitoringEvent(reading);
 
             monitorData.readings.push(reading);
 
             // Check if monitoring duration has elapsed
             if (durationMs > 0 && timestamp - startTime >= durationMs) {
                 monitorData.isRunning = false;
-                clearInterval(intervalId);
+                stopMonitoringContainerCpu(containerName);
                 Console.log(`CPU monitoring for ${containerName} completed`);
                 emitter.emit("monitoring-completed", {
                     containerName,
@@ -370,7 +411,7 @@ export default function ContainerMonitorService(_args=null) {
     instance.off = (event, listener) => emitter.off(event, listener);
     instance.once = (event, listener) => emitter.once(event, listener);
 
-    return instance;
+    return _init();
 }
 
 // Singleton pattern

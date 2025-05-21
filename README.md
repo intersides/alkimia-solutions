@@ -29,7 +29,8 @@ intersides-workspace/
 ├── modules/
 │   ├── ContainerMonitorService.js  # Service for monitoring Docker container performance
 │   ├── MqttService.js  # Service for MQTT communication between components
-│   └── MongoDbService.js  # Service for MongoDB database operations
+│   ├── MongoDbService.js  # Service for MongoDB database operations
+│   └── ServiceDispatcher.js  # Service for managing service instances and scaling
 ├── services/
 │   ├── LoadBalancer/  # Load balancing service for scaling strategies
 │   └── mongodb/       # MongoDB data and configuration files
@@ -40,6 +41,7 @@ intersides-workspace/
 ├── tests/             # Test suite
 ├── DockerManager.js   # Docker container management service with resource limits
 ├── proxy.js           # Custom Node.js HTTPS proxy with lazy container startup
+├── services-manifest.js # Service definitions and configuration
 ├── ecosystem.config.cjs # PM2 process manager configuration
 ├── Dockerfile.base    # Base Docker image configuration
 └── .env               # Environment configuration
@@ -68,6 +70,8 @@ The `DockerManager.js` module provides:
 5. Resource limits for containers (CPU and memory)
 6. Support for container scaling strategies
 7. MongoDB container management with replica set support
+8. Docker events monitoring for container lifecycle management
+9. Automatic container status detection and recovery
 
 ### Container Performance Monitoring
 
@@ -78,6 +82,8 @@ The `ContainerMonitorService.js` module provides:
 3. Performance data collection for analysis
 4. Support for automatic scaling decisions
 5. Panic threshold detection for critical resource usage
+6. Automatic monitoring of containers marked for observation
+7. Event-based monitoring lifecycle management
 
 ### Load Balancer Service
 
@@ -341,6 +347,17 @@ monitorService.monitorContainerCpu('alkimia-backend', 1000, 0, (reading) => {
   }
 }, 80);
 ```
+
+## Service Dispatcher
+
+The project includes a `ServiceDispatcher` module that:
+
+1. Manages service instances across the system
+2. Coordinates scaling operations between services
+3. Maintains a registry of active service instances
+4. Provides service discovery capabilities
+5. Handles service health monitoring and recovery
+6. Integrates with Docker events for container lifecycle awareness
 
 ## Service Communication
 
