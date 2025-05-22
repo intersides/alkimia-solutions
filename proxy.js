@@ -57,11 +57,11 @@ const sslOptions = {
 };
 
 function proxyRequest(target, req, res){
-    Console.log(`Routing to: ${target.host}:${target.port}`);
+    Console.log("Routing to:", target);
 
     const proxyReq = http.request({
-        host: target.host,
-        port: target.port,
+        host: target.config.host,
+        port: target.config.external_port,
         path: req.url,
         method: req.method,
         headers: req.headers,
@@ -97,79 +97,100 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     Console.log(`Received request: ${req.method} ${req.url}`);
     Console.log(`Host header: ${req.headers.host}`);
 
-    // Determine the target server based on routing rules
-    const httpRoute = serviceDispatcher.httpRouting.find(rule => rule.match(req));
-    if(httpRoute){
+    // Determine the target server based on the services manifest
+    const manifestService = serviceDispatcher.httpManifestService(req);
 
-        Console.debug("httpRoute:", httpRoute);
-        Console.debug("target:", httpRoute.target);
+    if(manifestService){
+        Console.debug("target:", manifestService);
 
-        dockerManager.checkContainerRunning(httpRoute.target.config.container_name).then((isRunning) => {
-            Console.debug("service:", httpRoute.target.config.container_name, "is running:", isRunning);
-            if(!isRunning){
+        //use docker container only for service.type docker-service
+        switch(manifestService.type){
 
-                Console.debug(`location: target.location:${httpRoute.target.location}`);
+            case "docker-service":{
 
-                dockerManager.manageContainer({
-                    name: httpRoute.target.name,
-                    container_name: httpRoute.target.config.container_name,
-                    subdomain: httpRoute.target.config.subdomain,
-                    location: httpRoute.target.location,
-                    port: httpRoute.target.port,
-                    networkName:"alkimia-net",
-                    forceRestart:false
-                });
+                dockerManager.checkContainerRunning(manifestService.config.container_name).then((isRunning) => {
 
-                dockerManager.waitForContainerReady(httpRoute.target.config.container_name).then(() => {
-                    Console.debug(`container ${httpRoute.target.config.container_name} is now running`);
+                    Console.debug("service:", manifestService.config.container_name, "is running:", isRunning);
 
-                    dockerManager.waitUntilContainerIsHealthy(httpRoute.target.config.container_name).then((isHealthy)=>{
-                        if(isHealthy){
-                            Console.debug(`container ${httpRoute.target.config.container_name} is now ready`);
-                            proxyRequest(httpRoute.target, req, res);
-                        }
-                        else{
+                    if(!isRunning){
+
+                        Console.debug(`location: target.location:${manifestService.config.location}`);
+
+                        dockerManager.manageContainer({
+                            name: manifestService.name,
+                            container_name: manifestService.config.container_name,
+                            public_domain: manifestService.config.public_domain,
+                            location: manifestService.config.location,
+                            port: manifestService.config.external_port,
+                            networkName:"alkimia-net",
+                            forceRestart:false
+                        });
+
+                        dockerManager.waitForContainerReady(manifestService.config.container_name).then(() => {
+                            Console.debug(`container ${manifestService.config.container_name} is now running`);
+
+                            dockerManager.waitUntilContainerIsHealthy(manifestService.config.container_name).then((isHealthy)=>{
+                                if(isHealthy){
+                                    Console.debug(`container ${manifestService.config.container_name} is now ready`);
+                                    proxyRequest(manifestService, req, res);
+                                }
+                                else{
+
+                                    if (!res.headersSent) {
+                                        res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+                                        res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+                                    }
+
+                                }
+                            }).catch(err=>{
+                                Console.error(err);
+
+                                if (!res.headersSent) {
+                                    res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+                                    res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+                                }
+
+                            });
+
+                        }).catch(err => {
+                            Console.error(err);
 
                             if (!res.headersSent) {
                                 res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
                                 res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
                             }
 
-                        }
-                    }).catch(err=>{
-                        Console.error(err);
+                        });
 
-                        if (!res.headersSent) {
-                            res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
-                            res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
-                        }
-
-                    });
+                    }
+                    else{
+                        Console.debug("forwarding request :", req.url, "to service:", manifestService.config.container_name);
+                        proxyRequest(manifestService, req, res);
+                    }
 
                 }).catch(err => {
                     Console.error(err);
-
+                    // NOTE: Handle error response to client
                     if (!res.headersSent) {
-                        res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
-                        res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+                        res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
+                        res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
                     }
-
                 });
 
-            }
-            else{
-                Console.debug("forwarding request :", req.url, "to service:", httpRoute.target.config.container_name);
-                proxyRequest(httpRoute.target, req, res);
-            }
+            }break;
+            default:{
+                Console.warn("not prepared to handle service route object of type", manifestService.type);
 
-        }).catch(err => {
-            Console.error(err);
-            // NOTE: Handle error response to client
-            if (!res.headersSent) {
-                res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
-                res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
-            }
-        });
+                if (!res.headersSent) {
+                    res.writeHead(HttpErrorStatus.Http501_Not_Implemented.status);
+                    res.end(HttpErrorStatus.Http501_Not_Implemented.statusText);
+                }
+
+            }break;
+
+        }
+
+
 
     }
     else{
@@ -188,11 +209,11 @@ httpsServer.on("upgrade", (req, socket, head) => {
     Console.log("REQ URL:", req.url);
     Console.log("REQ HEADERS:", req.headers);
 
-    const wsRoute = serviceDispatcher.wssRouting.find(rule => rule.match(req));
-    if(wsRoute){
-        Console.log("wsRoute:", wsRoute);
+    const socketManifestService = serviceDispatcher.socketManifestService(req);
 
-        const upstream = net.connect(wsRoute.target.port, wsRoute.target.host, () => {
+    if(socketManifestService){
+
+        const upstream = net.connect(socketManifestService.config.external_port, socketManifestService.config.host, () => {
 
             // Proper HTTP upgrade framing
             const requestLine = `GET ${req.url} HTTP/1.1\r\n`;

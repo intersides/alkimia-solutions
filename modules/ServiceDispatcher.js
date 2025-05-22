@@ -23,28 +23,50 @@ export default function ServiceDispatcher(_args=null){
         return manifest.services[_serviceName];
     };
 
-    instance.httpRouting = [
-        {
-            //NOTE: this might be not secure
-            match: (req) => {
-                return req.url.startsWith("/api/")
-                    || req.headers.host === "server.alkimia.localhost";
-            },
-            target: manifest.services["alkimia-backend"]
-        },
-        {
-            match: (req) => req.headers.host === "app.alkimia.localhost",
-            target:manifest.services["alkimia-frontend"]
+    instance.httpManifestService = function(request){
+
+        let httpServices = Object.values(manifest.services).filter(service=>service.protocol === "http");
+
+        let serviceInManifest = null;
+        switch(request.url){
+            case request.url.startsWith("/api/") ||  request.headers.host === "server.alkimia.localhost":{
+                serviceInManifest = manifest.services["alkimia-backend"];
+            }break;
+
+            default:{
+                serviceInManifest = httpServices.find(service=>service.config.public_domain === request.headers.host);
+            }break;
         }
 
-    ];
-    instance.wssRouting = [
-        {
-            match: (req) => req.headers.host === "mqtt.alkimia.localhost",
-            target:manifest.services["mqtt-alkimia-broker"]
-
+        if(!serviceInManifest){
+            Console.error("service manifest not found for request.url", request.url);
+            return null;
         }
-    ];
+
+        return serviceInManifest;
+
+    };
+
+    instance.socketManifestService = function(request){
+
+        let socketServices = Object.values(manifest.services).filter(service=>service.protocol === "mqtt" || service.protocol === "ws" || service.protocol === "wss");
+
+        let serviceInManifest = null;
+        switch(request.url){
+            default:{
+                serviceInManifest = socketServices.find(service=>service.config.public_domain === request.headers.host);
+            }break;
+        }
+
+        if(!serviceInManifest){
+            Console.error("service manifest not found for request.url", request.url);
+            return null;
+        }
+
+
+        return serviceInManifest;
+
+    };
 
 
     return _init();

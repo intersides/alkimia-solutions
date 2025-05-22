@@ -329,10 +329,14 @@ export default function DockerManager(_args = null) {
      * @returns {string} - Result of operation
      */
     function manageContainer(options) {
+
+        Console.debug("manageContainer options:", options);
+
+        Console.debug("envVars.DOMAIN:", envVars.DOMAIN);
+
         const {
-            name,
             container_name,
-            subdomain,
+            public_domain,
             location,
             port,
             networkName = "alkimia-net",
@@ -341,7 +345,6 @@ export default function DockerManager(_args = null) {
 
         Console.debug("DEBUG: location", location);
         Console.debug("DEBUG: root", root);
-
 
         // Ensure the network exists
         ensureNetworkExists(networkName);
@@ -421,8 +424,8 @@ export default function DockerManager(_args = null) {
           -e PUBLIC_PORT=${port}\
           -e PORT=${envVars.DOCKER_FILE_PORT}\
           -e PROTOCOL=${envVars.PROTOCOL} \
-          -e DOMAIN=${envVars.DOMAIN}\
-          -e SUBDOMAIN=${subdomain} \
+          -e DOMAIN=${public_domain}\
+          -e SUBDOMAIN=${public_domain} \
           ${volumeFlags} \
           ${container_name}`;
 
@@ -435,7 +438,7 @@ export default function DockerManager(_args = null) {
         DockerManager.emitter.emit("container-started", {
             name: container_name,
             env: envVars.ENV,
-            domain: envVars.DOMAIN,
+            domain: public_domain,
             port: port
         });
 
