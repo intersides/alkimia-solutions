@@ -34,6 +34,7 @@ export default function DockerManager(_args = null) {
                         event = JSON.parse(line);
                     }
                     catch(e){
+                        Console.error(e);
                         Console.error(`failed to parse docker data event {${e.message}} for entry:`, line );
                     }
 
