@@ -44,7 +44,7 @@ export default function MongoDbService(_args=null){
                 Console.log(`${dbName} database has been set`);
 
                 services = db.collection("services");
-                events = db.collection("events");
+                events = db.collection("session-events");
                 monitors = db.collection("monitors");
 
                 const eventsChangeStream = events.watch();

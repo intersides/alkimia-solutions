@@ -8,14 +8,16 @@ import Console from "@intersides/console";
 import dotenv from "dotenv";
 import { WebSocketServer } from "ws";
 import * as net from "node:net";
-import manifest from "./services-manifest.js";
 import ServiceDispatcher from "./modules/ServiceDispatcher.js";
 import ContainerMonitorService from "./modules/ContainerMonitorService.js";
 import {HttpErrorStatus} from "@workspace/common/enums.js";
 import MqttService from "./modules/MqttService.js";
 import MongoDbService from "./modules/MongoDbService.js";
+import Manifest from "./services-manifest.js";
 
 dotenv.config();
+
+const manifest = Manifest();
 
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +42,7 @@ let mongoDbService = MongoDbService({
     dbName: process.env.MONGO_DB_NAME
 });
 
+//TODO: try to get rid of envVars
 let dockerManager = DockerManager.getInstance({
     root:_projectRootPath,
     envVars:process.env,
@@ -59,9 +62,11 @@ const sslOptions = {
 function proxyRequest(target, req, res){
     Console.log("Routing to:", target);
 
+    let externalPort = target.config.ports[0].split(":")[0];
+
     const proxyReq = http.request({
         host: target.config.host,
-        port: target.config.external_port,
+        port: externalPort,
         path: req.url,
         method: req.method,
         headers: req.headers,
@@ -101,7 +106,7 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     const manifestService = serviceDispatcher.httpManifestService(req);
 
     if(manifestService){
-        Console.debug("target:", manifestService);
+        Console.debug("manifestService:", manifestService);
 
         //use docker container only for service.type docker-service
         switch(manifestService.type){
@@ -116,13 +121,8 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
 
                         Console.debug(`location: target.location:${manifestService.config.location}`);
 
-                        dockerManager.manageContainer({
-                            name: manifestService.name,
-                            container_name: manifestService.config.container_name,
-                            public_domain: manifestService.config.public_domain,
-                            location: manifestService.config.location,
-                            port: manifestService.config.external_port,
-                            networkName:"alkimia-net",
+                        dockerManager.manageContainer(manifestService,{
+                            runningEnv:process.env.ENV,
                             forceRestart:false
                         });
 
@@ -246,8 +246,6 @@ httpsServer.on("upgrade", (req, socket, head) => {
         Console.warn("No valid WS target. Falling back or rejecting.");
         socket.destroy();
     }
-    // const target = route?.target;
-
 
 });
 
@@ -272,9 +270,11 @@ Promise.all([
 
     new Promise((resolve, reject) => {
 
-        let serviceId = ServiceDispatcher.ServiceId.MONGO_DB;
+        let serviceId = manifest.ServiceIds.MONGO_DB;
 
         try {
+
+            // const result = dockerManager.startMongoDb("alkimia-net", manifest.services[manifest.ServiceIds.MONGO_DB]);
             const result = dockerManager.startMongoDb(serviceId);
             Console.debug(`MongoDB operation result: ${result}`);
 

@@ -64,14 +64,12 @@ export default function DockerManager(_args = null) {
                                 }
                             });
 
-
                             let serviceManifest = serviceDispatcher.getService(name);
 
                             let containerInfo = {
                                 ...serviceManifest,
                                 env: envVars.ENV,
                                 state:event.Action,
-                                domain: envVars.DOMAIN,
                                 id: event.ID,
                                 timestamp: eventTime
                             };
@@ -326,29 +324,22 @@ export default function DockerManager(_args = null) {
 
     /**
      * Manage container lifecycle (create, start, or restart)
+     * @param {Object} manifest - manifest object
      * @param {Object} options - Container options
-     * @returns {string} - Result of operation
+     * @returns {string} - Result of operation //NOTE the return result is not used
      */
-    function manageContainer(options) {
-
-        Console.debug("manageContainer options:", options);
-
-        Console.debug("envVars.DOMAIN:", envVars.DOMAIN);
+    function manageContainer(manifest, options) {
 
         const {
-            container_name,
-            public_domain,
-            location,
-            port,
-            networkName = "alkimia-net",
-            forceRestart = false
+            runningEnv="production",
+            forceRestart=false
         } = options;
 
-        Console.debug("DEBUG: location", location);
-        Console.debug("DEBUG: root", root);
+        //override ENV in manifest with the one from options
+        manifest.config.env["ENV"] = runningEnv;
 
         // Ensure the network exists
-        ensureNetworkExists(networkName);
+        ensureNetworkExists(manifest.config.network);
 
         // Ensure base image exists
         if (!doesImageExist("intersides-workspace-base")) {
@@ -356,41 +347,40 @@ export default function DockerManager(_args = null) {
         }
 
         // Check container status
-        const containerStatus = getContainerStatus(container_name);
-        Console.debug(`Container ${container_name} container_status: ${containerStatus}`);
+        const containerStatus = getContainerStatus(manifest.config.container_name);
 
         // Handle based on status
         if (containerStatus === "running") {
             if (forceRestart) {
-                stopAndRemoveContainer(container_name);
+                stopAndRemoveContainer(manifest.config.container_name);
             } else {
-                Console.info(`Container ${container_name} is already running`);
+                Console.info(`Container ${manifest.config.container_name} is already running`);
                 return "already_running";
             }
         } else if (containerStatus === "stopped") {
             if (forceRestart) {
-                stopAndRemoveContainer(container_name);
+                stopAndRemoveContainer(manifest.config.container_name);
             } else {
-                Console.info(`Starting existing container ${container_name}`);
-                execSync(`docker start ${container_name}`, {stdio: "inherit"});
+                Console.log(`Starting existing container ${manifest.config.container_name}`);
+                execSync(`docker start ${manifest.config.container_name}`, {stdio: "inherit"});
                 return "started_existing";
             }
         }
 
         // Build the image - Use absolute paths and set the working directory to root
-        const dockerfilePath = path.resolve(root, location, "Dockerfile");
-        Console.debug(`Building image with Dockerfile at: ${dockerfilePath}`);
-        Console.debug(`Build context: ${root}`);
-        Console.debug(`Current working directory: ${process.cwd()}`);
+        const dockerfilePath = path.resolve(root, manifest.config.location, "Dockerfile");
+        Console.log(`Building image with Dockerfile at: ${dockerfilePath}`);
+        Console.log(`Build context: ${root}`);
+        Console.log(`Current working directory: ${process.cwd()}`);
 
-        // Check if files exist
+        // Check if files exist TODO: WHY DO I NEED THIS?
         const packageJsonPath = path.resolve(root, "package.json");
         Console.debug(`package.json exists: ${fs.existsSync(packageJsonPath)}`);
 
         const buildCommand = `docker build \
           -f ${dockerfilePath} \
-          -t ${container_name} \
-          --build-arg ENV=${envVars.ENV}\
+          -t ${manifest.config.container_name} \
+          --build-arg ENV=${runningEnv}\
           ${root}`;
 
         try {
@@ -403,32 +393,30 @@ export default function DockerManager(_args = null) {
             throw error;
         }
 
-
         // Prepare volume mounts
         let volumeFlags = [
             "-v /app/node_modules"
         ];
-        if (envVars.ENV === "development") {
-            volumeFlags.push(`-v ${root}/${location}:/app`);
+        if (runningEnv === "development") {
+            volumeFlags.push(`-v ${root}/${manifest.config.location}:/app`);
             volumeFlags.push(`-v ${root}/libs:/app/libs`);
         }
         volumeFlags = volumeFlags.join(" ");
 
+        const envVariablesPart = Object.entries(manifest.config.env)
+            .map(([key, value]) => `-e ${key}=${value}`)
+            .join(" ");
+
         // Run the container
         const runCommand = `docker run -d \
-          --name ${container_name} \
-          --network ${networkName} \
+          --name ${manifest.config.container_name} \
+          --network ${manifest.config.network} \
           --cpus=1 \
           --memory=512m \
-          -p ${port}:${envVars.DOCKER_FILE_PORT} \
-          -e ENV=${envVars.ENV} \
-          -e PUBLIC_PORT=${port}\
-          -e PORT=${envVars.DOCKER_FILE_PORT}\
-          -e PROTOCOL=${envVars.PROTOCOL} \
-          -e DOMAIN=${public_domain}\
-          -e SUBDOMAIN=${public_domain} \
+          -p ${manifest.config.env.PUBLIC_PORT}:${manifest.config.env.PORT} \
+          ${envVariablesPart} \
           ${volumeFlags} \
-          ${container_name}`;
+          ${manifest.config.container_name}`;
 
         Console.debug("About to execute command", runCommand);
 
@@ -437,10 +425,10 @@ export default function DockerManager(_args = null) {
         });
 
         DockerManager.emitter.emit("container-started", {
-            name: container_name,
-            env: envVars.ENV,
-            domain: public_domain,
-            port: port
+            name: manifest.config.container_name,
+            env: runningEnv,
+            domain: manifest.config.public_domain,
+            port: manifest.config.external_port
         });
 
         return "created_new";
