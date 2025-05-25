@@ -435,26 +435,41 @@ export default function DockerManager(_args = null) {
     }
 
     /**
-     * Start or restart MongoDB container with replica set support
-     * @param {string} [_containerName="mongodb-alkimia-storage"] - Name for the MongoDB container
-     * @param _networkName
-     * @returns {string} - Result of operation
+     *
+     * @param {object} manifest
+     * @param {object} options
+     * @return {string}
      */
-    function startMongoDb(_containerName = "mongodb-alkimia-storage", _networkName = "alkimia-net") {
+    function startMongoDb(manifest, options) {
+
+        const {
+            runningEnv="production",
+            forceRestart=false
+        } = options;
+
+        //override ENV in manifest with the one from options
+        manifest.config.env["ENV"] = runningEnv;
+
         // Ensure the network exists
-        ensureNetworkExists(_networkName);
+        ensureNetworkExists(manifest.config.network);
 
         // Check container status
-        const containerStatus = getContainerStatus(_containerName);
-        Console.debug(`MongoDB ${_containerName} status: ${containerStatus}`);
-
+        const containerStatus = getContainerStatus(manifest.config.container_name);
         if (containerStatus === "running") {
-            Console.info(`MongoDB ${_containerName} is already running`);
-            return "already_running";
+            if (forceRestart) {
+                stopAndRemoveContainer(manifest.config.container_name);
+            } else {
+                Console.info(`Container ${manifest.config.container_name} is already running`);
+                return "already_running";
+            }
         } else if (containerStatus === "stopped") {
-            Console.info(`Starting existing MongoDB ${_containerName}`);
-            execSync(`docker start ${_containerName}`, {stdio: "inherit"});
-            return "started_existing";
+            if (forceRestart) {
+                stopAndRemoveContainer(manifest.config.container_name);
+            } else {
+                Console.log(`Starting existing container ${manifest.config.container_name}`);
+                execSync(`docker start ${manifest.config.container_name}`, {stdio: "inherit"});
+                return "started_existing";
+            }
         }
 
         // Create the data directory if it doesn't exist
@@ -468,7 +483,6 @@ export default function DockerManager(_args = null) {
         if (!fs.existsSync(configPath)) {
             fs.mkdirSync(configPath, { recursive: true });
         }
-        console.debug("DEBUG: configPath", configPath);
 
         // Create a keyFile for replica set authentication
         const keyFilePath = path.resolve(configPath, "mongodb-keyfile");
@@ -479,24 +493,32 @@ export default function DockerManager(_args = null) {
             execSync(`chmod 400 ${keyFilePath}`, { stdio: "inherit" });
         }
 
+        const ports = manifest.config.ports
+            .map( port => `-p ${port}`)
+            .join(" ");
+
+        const env = Object.entries(manifest.config.env)
+            .map(([key, value]) => `-e ${key}=${value}`)
+            .join(" ");
+
+        const health_check = manifest.config.health_check
+            .map( entry => `${entry}`)
+            .join(" ");
+
+        const additional_args = manifest.config.additional_args
+            .map( entry => `${entry}`)
+            .join(" ");
+
         // Create a new container with replica set support
-        const runCommand = `docker run -d --name ${_containerName} \
-                         --network ${_networkName} \
-                         -p 27017:27017 \
-                         -p 28017:28017 \
-                         -e MONGO_INITDB_ROOT_USERNAME=mongoadmin \
-                         -e MONGO_INITDB_ROOT_PASSWORD=secret \
+        const runCommand = `docker run -d --name ${manifest.config.container_name} \
+                         --network ${manifest.config.network} \
+                         ${ports}\
+                         ${env}\
                          -v ${dataPath}:/data/db \
                          -v ${keyFilePath}:/data/mongodb-keyfile \
-                         --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })' --quiet" \
-                         --health-interval=10s \
-                         --health-timeout=5s \
-                         --health-retries=5 \
-                         --health-start-period=30s \
-                         mongo:latest \
-                         --replSet rs0  \
-                         --keyFile /data/mongodb-keyfile \
-                         --bind_ip_all`;
+                         ${health_check}\
+                         ${manifest.config.image}\
+                         ${additional_args}`;
 
         Console.debug("About to exec runCommand for MongoDB with", runCommand);
 
@@ -512,18 +534,29 @@ export default function DockerManager(_args = null) {
         const initializeReplicaSetWhenReady = () => {
             try {
                 // Check if MongoDB is responding to commands
-                const checkCommand = `docker exec ${_containerName} mongosh -u mongoadmin -p secret --eval 'db.runCommand({ ping: 1 })' --quiet`;
+                const checkCommand = `docker exec ${manifest.config.container_name} mongosh -u mongoadmin -p secret --eval 'db.runCommand({ ping: 1 })' --quiet`;
                 execSync(checkCommand, { stdio: "pipe" });
 
-                // MongoDB is ready, initializing the replica set
-                Console.info("MongoDB is ready, initializing replica set...");
-                const initReplicaSet = `docker exec ${_containerName} mongosh -u mongoadmin -p secret --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
-                execSync(initReplicaSet, { stdio: "inherit" });
-                Console.info("MongoDB replica set initialized successfully");
+                // Check if the replica set is already initialized
+                try {
+                    const rsStatusCommand = `docker exec ${manifest.config.container_name} mongosh -u mongoadmin -p secret --eval 'rs.status().ok'`;
+                    const rsStatusResult = execSync(rsStatusCommand, { stdio: "pipe" }).toString().trim();
 
+                    if (rsStatusResult.includes("1")) {
+                        Console.log("MongoDB: replica set is already initialized");
+                        return true;
+                    }
+                } catch (rsError) {
+                    // rs.status() will fail if replica set is not initialized, which is expected
+                    Console.debug("Replica set not initialized yet, will initialize now", rsError.message);
+                }
+
+                Console.info("MongoDB: initializing replica set...");
+                const initReplicaSet = `docker exec ${manifest.config.container_name} mongosh -u mongoadmin -p secret --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'`;
+                execSync(initReplicaSet, { stdio: "inherit" });
                 return true;
             } catch (error) {
-                Console.debug("MongoDB not ready yet, retrying...");
+                Console.log("MongoDB not ready yet, retrying...", error.message);
                 return false;
             }
         };
@@ -541,7 +574,7 @@ export default function DockerManager(_args = null) {
 
             attempts++;
             if (initializeReplicaSetWhenReady()) {
-                return; // Success
+                return Console.info("MongoDB: replica set initialized"); // Success
             } else {
                 // Exponential backoff with a cap
                 const nextInterval = Math.min(pollInterval * Math.pow(1.5, attempts - 1), 10000);
@@ -553,8 +586,16 @@ export default function DockerManager(_args = null) {
         // Start polling
         pollForMongoDB();
 
+        DockerManager.emitter.emit("container-started", {
+            name: manifest.config.container_name,
+            env: runningEnv,
+            domain: manifest.config.public_domain,
+            port: manifest.config.external_port
+        });
+
         return "created_new";
     }
+
 
     /**
      * Start or restart MQTT broker container

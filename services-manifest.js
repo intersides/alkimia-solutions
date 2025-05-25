@@ -115,13 +115,17 @@ export default function Manifest(){
                     //     `${keyFilePath}:/data/mongodb-keyfile`
                     // ],
                     health_check:[
-                        "--health-cmd \"mongosh --eval 'db.runCommand({ ping: 1 })' --quie\"",
+                        `--health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })' --quiet"`,
                         "--health-interval=10s",
                         "--health-timeout=5s",
                         "--health-retries=5",
                         "--health-start-period=30s"
                     ],
-                    additional_args : ["--replSet rs0", "--keyFile /data/mongodb-keyfile", "--bind_ip_all"]
+                    additional_args : [
+                        "--replSet rs0",
+                        "--keyFile /data/mongodb-keyfile",
+                        "--bind_ip_all"
+                    ]
 
                 }
             },

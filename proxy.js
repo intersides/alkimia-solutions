@@ -274,8 +274,11 @@ Promise.all([
 
         try {
 
-            // const result = dockerManager.startMongoDb("alkimia-net", manifest.services[manifest.ServiceIds.MONGO_DB]);
-            const result = dockerManager.startMongoDb(serviceId);
+            const result = dockerManager.startMongoDb(manifest.services[manifest.ServiceIds.MONGO_DB], {
+                runningEnv:"development",
+                forceRestart:false
+            });
+
             Console.debug(`MongoDB operation result: ${result}`);
 
             if (result === "already_running") {

@@ -27,7 +27,13 @@ export default [
                 }
             ],
             "linebreak-style": ["error", "unix"],
-            "quotes": ["error", "double"],
+            "quotes": [
+                "error",
+                "double",
+                {
+                    "allowTemplateLiterals": true // This allows backticks (`) without errors
+                }
+            ],
             "semi": ["error", "always"],
             "no-unused-vars": ["warn"],
             "comma-dangle": ["error", "never"]
