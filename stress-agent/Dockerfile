@@ -2,10 +2,12 @@
 FROM intersides-workspace-base AS base
 
 # Single Alpine stage for build and runtime
-FROM node:23-alpine
+FROM node:24.0.1-alpine
 
 # Install vim
-RUN apk add --no-cache vim
+RUN apk add --no-cache vim curl
+
+ARG ENV
 
 WORKDIR /app
 
@@ -25,9 +27,11 @@ RUN npm install
 #if production...
 #RUN npm run development
 
-RUN echo "mode: $ENV"
+RUN echo "stress-agent env: $ENV"
 
 EXPOSE 3000
 
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail -H "User-Agent: Docker-Health-Check" -H "X-Source: Docker" -H "Content-Type: application/json" -H "Accept: application/json" http://localhost:3000/ping || exit 1
+
 # Run the backend
-CMD ["sh", "-c", "npm run development"]
+CMD ["sh", "-c", "npm run \"$ENV\""]

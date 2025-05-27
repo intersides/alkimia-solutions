@@ -32,7 +32,7 @@ intersides-workspace/
 │   ├── MongoDbService.js  # Service for MongoDB database operations
 │   └── ServiceDispatcher.js  # Service for managing service instances and scaling
 ├── services/
-│   ├── LoadBalancer/  # Load balancing service for scaling strategies
+│   ├── OrchestratorService/  # Load balancing service for scaling strategies
 │   └── mongodb/       # MongoDB data and configuration files
 ├── certs/             # SSL certificates for local development
 │   ├── fullchain.pem  # Combined certificate with CA
@@ -87,7 +87,7 @@ The `ContainerMonitorService.js` module provides:
 
 ### Load Balancer Service
 
-The `LoadBalancer` service provides:
+The `OrchestratorService` service provides:
 
 1. Intelligent distribution of traffic across multiple service instances
 2. MQTT integration for real-time communication between services
@@ -255,7 +255,7 @@ These limits help simulate resource constraints and test how the system behaves 
 The system includes Docker health checks to ensure containers are functioning properly:
 
 ```dockerfile
-# Example from LoadBalancer Dockerfile
+# Example from OrchestratorService Dockerfile
 HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail http://localhost:3000/ping || exit 1
 ```
 

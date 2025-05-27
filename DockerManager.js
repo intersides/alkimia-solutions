@@ -35,7 +35,7 @@ export default function DockerManager(_args = null) {
                     }
                     catch(e){
                         Console.error(e);
-                        Console.error(`failed to parse docker data event {${e.message}} for entry:`, line );
+                        Console.error(`failed to parse docker data event {${e.message}} for entry:`, line, "for data", data);
                     }
 
                     if(event){
@@ -261,7 +261,7 @@ export default function DockerManager(_args = null) {
         return new Promise((resolve, reject) => {
             setTimeout(() => {
                 const status = getContainerStatus(containerName);
-                Console.debug("DEBUG: status", status);
+                Console.debug(`${containerName} status:`, status);
 
                 DockerManager.emitter.emit(status, {
                     name: containerName,
@@ -293,6 +293,7 @@ export default function DockerManager(_args = null) {
             let elapsedTime = 0;
 
             const checkHealth = () => {
+
                 exec(`docker inspect -f '{{.State.Health.Status}}' ${containerName}`, (err, stdout, stderr) => {
                     if (err) {
                         Console.error(`Error checking health for container ${containerName}:`, stderr);
@@ -348,8 +349,6 @@ export default function DockerManager(_args = null) {
 
         // Check container status
         const containerStatus = getContainerStatus(manifest.config.container_name);
-
-        // Handle based on status
         if (containerStatus === "running") {
             if (forceRestart) {
                 stopAndRemoveContainer(manifest.config.container_name);
@@ -367,31 +366,35 @@ export default function DockerManager(_args = null) {
             }
         }
 
-        // Build the image - Use absolute paths and set the working directory to root
-        const dockerfilePath = path.resolve(root, manifest.config.location, "Dockerfile");
-        Console.log(`Building image with Dockerfile at: ${dockerfilePath}`);
-        Console.log(`Build context: ${root}`);
-        Console.log(`Current working directory: ${process.cwd()}`);
+        //this applies to docker images that are built locally from a dockerfile
+        if(manifest.config.dockerfile){
+            // Build the image - Use absolute paths and set the working directory to root
+            const dockerfilePath = path.resolve(root, manifest.config.dockerfile);
+            Console.log(`Building image with Dockerfile at: ${dockerfilePath}`);
+            Console.log(`Build context: ${root}`);
+            Console.log(`Current working directory: ${process.cwd()}`);
 
-        // Check if files exist TODO: WHY DO I NEED THIS?
-        const packageJsonPath = path.resolve(root, "package.json");
-        Console.debug(`package.json exists: ${fs.existsSync(packageJsonPath)}`);
+            // Check if files exist TODO: WHY DO I NEED THIS?
+            const packageJsonPath = path.resolve(root, "package.json");
+            Console.debug(`package.json exists: ${fs.existsSync(packageJsonPath)}`);
 
-        const buildCommand = `docker build \
+            const buildCommand = `docker build \
           -f ${dockerfilePath} \
           -t ${manifest.config.container_name} \
           --build-arg ENV=${runningEnv}\
           ${root}`;
 
-        try {
-            execSync(buildCommand, {
-                cwd: root,
-                stdio: "inherit"
-            });
-        } catch (error) {
-            Console.error(`Build failed: ${error.message}`);
-            throw error;
+            try {
+                execSync(buildCommand, {
+                    cwd: root,
+                    stdio: "inherit"
+                });
+            } catch (error) {
+                Console.error(`Build failed: ${error.message}`);
+                throw error;
+            }
         }
+
 
         // Prepare volume mounts
         let volumeFlags = [

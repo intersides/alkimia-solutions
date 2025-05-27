@@ -302,7 +302,7 @@ Promise.all([
 
     new Promise((resolve, reject)=>{
 
-        let serviceId = ServiceDispatcher.ServiceId.MQTT_BROKER;
+        let serviceId = manifest.ServiceIds.MQTT_BROKER;
 
         // Start or ensure MQTT broker is running
         try{
@@ -330,25 +330,21 @@ Promise.all([
 
     })
 
-    //NOTE: at the moment lets consider to comment out the LoadBalancer, because beside the fancy name is not doing much
     // new Promise((resolve, reject)=>{
     //
-    //     let serviceId = ServiceDispatcher.ServiceId.LOAD_BALANCER;
+    //     let serviceId = manifest.ServiceIds.STRESS_AGENT;
+    //     let stressAgentManifest = manifest.services[serviceId];
     //
     //     try{
     //         dockerManager.checkContainerRunning(serviceId).then((isRunning) => {
     //             Console.debug("service:", serviceId, "is running:", isRunning);
     //             if(!isRunning){
     //
-    //                 dockerManager.manageContainer({
-    //                     name: "load-balancer",
-    //                     container_name: serviceId,
-    //                     subdomain: "balancer",
-    //                     location: "services/LoadBalancer",
-    //                     port: 7001,
-    //                     networkName:"alkimia-net",
+    //                 dockerManager.manageContainer(stressAgentManifest,{
+    //                     runningEnv:process.env.ENV,
     //                     forceRestart:false
     //                 });
+    //
     //
     //                 dockerManager.waitForContainerReady(serviceId).then(() => {
     //                     Console.debug(`container ${serviceId} is now running`);
@@ -376,7 +372,6 @@ Promise.all([
     //             else{
     //                 Console.debug(`Service: ${serviceId} is already running`);
     //                 resolve(serviceId);
-    //
     //             }
     //
     //         }).catch(err => {

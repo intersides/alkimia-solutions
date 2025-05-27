@@ -10,7 +10,7 @@ export default function Manifest(){
         ALKIMIA_FRONTEND:"alkimia-frontend",
         MONGO_DB:"mongodb-alkimia-storage",
         MQTT_BROKER:"mqtt-alkimia-broker",
-        LOAD_BALANCER:"alkimia-load-balancer",
+        STRESS_AGENT:"alkimia-stress-agent",
         THINGY_SENSOR:"thingy-sensor"
     };
 
@@ -28,6 +28,7 @@ export default function Manifest(){
                     host: "localhost",
                     network: Networks.ALKIMIA_NET,
                     location:"apps/backend",
+                    dockerfile:"apps/backend/Dockerfile",
                     public_domain:"server.alkimia.localhost",
                     container_name:ServiceIds.ALKIMIA_BACKEND,
                     ports:[
@@ -55,6 +56,7 @@ export default function Manifest(){
                     host: "localhost", //NOTE: important for proxy when running locally
                     network: Networks.ALKIMIA_NET,
                     location:"apps/frontend",
+                    dockerfile:"apps/frontend/Dockerfile",
                     public_domain:"app.alkimia.localhost",
                     container_name: ServiceIds.ALKIMIA_FRONTEND,
                     ports:[
@@ -72,6 +74,37 @@ export default function Manifest(){
                     internal_port:3000
                 }
             },
+
+            [ServiceIds.STRESS_AGENT]:{
+                name: ServiceIds.STRESS_AGENT,
+                monitored:false,
+                type:"docker-service",
+                protocol: "http",
+                mode: "rest-api",
+                config:{
+                    host: "localhost",
+                    network: Networks.ALKIMIA_NET,
+                    location:"stress-agent",
+                    dockerfile:"stress-agent/Dockerfile",
+                    public_domain:"stressagent.alkimia.localhost",
+                    container_name:ServiceIds.STRESS_AGENT,
+                    ports:[
+                        "7777:3000"
+                    ],
+                    env:{
+                        ENV:"staging",
+                        PUBLIC_PORT: "7777",
+                        PORT: "3000",
+                        PROTOCOL: "https",
+                        DOMAIN: "alkimia.localhost",
+                        SUBDOMAIN: "stressagent"
+                    },
+                    external_port:7777,
+                    internal_port:3000
+                }
+            },
+
+
             [ServiceIds.MQTT_BROKER]:{
                 name: ServiceIds.MQTT_BROKER,
                 monitored:false,
@@ -129,6 +162,7 @@ export default function Manifest(){
 
                 }
             },
+
 
             [ServiceIds.THINGY_SENSOR]:{
                 name: ServiceIds.THINGY_SENSOR,

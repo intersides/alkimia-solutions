@@ -9,10 +9,10 @@ flowchart TD
 
     Start[Promise.all] --> MongoDbContainer["MongoDB Database"];
     Start --> MqttBroker(MQTT Broker);
-    Start --> LoadBalancer(LoadBalancer Service);
+    Start --> OrchestratorService(OrchestratorService Service);
 
     MongoDbContainer --> Promises{All resolved ?};
-    LoadBalancer --> Promises;
+    OrchestratorService --> Promises;
     MqttBroker --> Promises;
 
     Promises -->|then|Converge(resolved)

@@ -80,10 +80,4 @@ ServiceDispatcher.getSingleton = function(_params){
     return _singleton;
 };
 
-ServiceDispatcher.ServiceId = {
-    MONGO_DB:"mongodb-alkimia-storage",
-    MQTT_BROKER:"mqtt-alkimia-broker",
-    LOAD_BALANCER:"alkimia-load-balancer"
-};
-
 

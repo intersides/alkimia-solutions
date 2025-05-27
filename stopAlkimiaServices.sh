@@ -21,7 +21,7 @@ elif [ ! -z "$1" ]; then
 fi
 
 # List of service names
-services="alkimia-backend alkimia-frontend alkimia-load-balancer mqtt-alkimia-broker mongodb-alkimia-storage"
+services="alkimia-backend alkimia-frontend alkimia-stress-agent mqtt-alkimia-broker mongodb-alkimia-storage"
 
 
 # Stop containers

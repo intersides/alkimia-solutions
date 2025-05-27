@@ -4,9 +4,15 @@ import Router from "@workspace/node/services/Router.js";
 import {HttpErrorGeneric, HttpResponse} from "@workspace/node/ServerResponse.js";
 const url = await import("url");
 import Console from "@intersides/console";
+import {MimeType} from "@workspace/common/enums.js";
 
 
-Console.log("process.env:", process.env);
+// Console.log("process.env:", process.env);
+
+const PORT = process.env.PORT || 3000;
+const PUBLIC_PORT = process.env.PUBLIC_PORT || PORT;
+
+Console.debug("PORT", PORT);
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 const __appRoot = path.resolve(__dirname, "./");
@@ -53,7 +59,7 @@ async function runStressIncrementalTestOnBackend() {
 }
 
 Server.getInstance({
-    port:8888,
+    port:PORT,
     router: Router.getInstance({
         routes:{
             GET:{
@@ -63,6 +69,13 @@ Server.getInstance({
                             data: { msg: "hello stress-agent" }
                         });
                     }
+                },
+                "/ping": {
+                    isProtected: false,
+                    handler: () => HttpResponse({
+                        data: {msg: "pong"},
+                        mimeType:MimeType.JSON
+                    })
                 },
                 "/stress":{
                     handler: async function(){

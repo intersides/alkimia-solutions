@@ -18,7 +18,7 @@ COPY --from=base /repo/libs/browser ./libs/browser
 COPY --from=base /repo/libs/node ./libs/node
 
 # Copy backend app to root of /app
-COPY services/LoadBalancer .
+COPY services/OrchestratorService .
 
 # Ensure workspace links are correct (if needed)
 RUN npm install
