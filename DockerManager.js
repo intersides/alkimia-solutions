@@ -25,99 +25,103 @@ export default function DockerManager(_args = null) {
 
         child.stdout.on("data", (data) => {
             try {
-                const lines = data.trim().split("\n");
-                for (const line of lines) {
+                if( Utilities.isNonemptyString(data.trim())){
+                    const lines = data.trim().split("\n");
+                    for (const line of lines) {
 
-
-                    let event = null;
-                    try{
-                        event = JSON.parse(line);
-                    }
-                    catch(e){
-                        Console.error(e);
-                        Console.error(`failed to parse docker data event {${e.message}} for entry:`, line, "for data", data);
-                    }
-
-                    if(event){
-                        if (event.Type === "container" && [
-                            "create",
-                            "start",
-                            "restart",
-                            "pause",
-                            "destroy",
-                            "stop",
-                            "die",
-                            "kill",
-                            "oom"
-                        ].includes(event.Action)) {
-                            const name = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
-
-                            const eventTime = new Date(event.timeNano / 1e6); // to milliseconds
-
-                            Console.log(`[DockerService] Container ${name} ${event.Action}`);
-                            DockerManager.emitter.emit("event", {
-                                type:"docker-container",
-                                timestamp: eventTime,
-                                data:{
-                                    name,
-                                    action: event.Action
-                                }
-                            });
-
-                            let serviceManifest = serviceDispatcher.getService(name);
-
-                            let containerInfo = {
-                                ...serviceManifest,
-                                env: envVars.ENV,
-                                state:event.Action,
-                                id: event.ID,
-                                timestamp: eventTime
-                            };
-
-                            switch(event.Action){
-                                case "create":{
-                                    DockerManager.emitter.emit("container-created", containerInfo);
-                                }break;
-
-                                case "restart":{
-                                    DockerManager.emitter.emit("container-restarted", containerInfo);
-                                }break;
-
-                                case "start":{
-                                    DockerManager.emitter.emit("container-started", containerInfo);
-                                }break;
-
-                                case "kill":{
-                                    DockerManager.emitter.emit("container-killed", containerInfo);
-                                }break;
-
-                                case "stop":{
-                                    DockerManager.emitter.emit("container-stopped", containerInfo);
-                                }break;
-
-                                case "destroy":{
-                                    DockerManager.emitter.emit("container-destroyed", containerInfo);
-                                }break;
-
-                                case "die":{
-                                    DockerManager.emitter.emit("container-died", containerInfo);
-                                }break;
-
-                                default:{
-                                    Console.warn("not dealing with docker event :", event.Action);
-                                }break;
-                            }
-
-                            // if(containerInfo.monitored){
-                            //     containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
-                            //
-                            // }
-
-
+                        let event = null;
+                        try{
+                            event = JSON.parse(line);
                         }
+                        catch(e){
+                            Console.error(e);
+                            Console.error(`failed to parse docker data event {${e.message}} for entry:`, line, "for data", data);
+                        }
+
+                        if(event){
+                            if (event.Type === "container" && [
+                                "create",
+                                "start",
+                                "restart",
+                                "pause",
+                                "destroy",
+                                "stop",
+                                "die",
+                                "kill",
+                                "oom"
+                            ].includes(event.Action)) {
+                                const name = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
+
+                                const eventTime = new Date(event.timeNano / 1e6); // to milliseconds
+
+                                Console.log(`[DockerService] Container ${name} ${event.Action}`);
+                                DockerManager.emitter.emit("event", {
+                                    type:"docker-container",
+                                    timestamp: eventTime,
+                                    data:{
+                                        name,
+                                        action: event.Action
+                                    }
+                                });
+
+                                let serviceManifest = serviceDispatcher.getService(name);
+
+                                let containerInfo = {
+                                    ...serviceManifest,
+                                    env: envVars.ENV,
+                                    state:event.Action,
+                                    id: event.ID,
+                                    timestamp: eventTime
+                                };
+
+                                switch(event.Action){
+                                    case "create":{
+                                        DockerManager.emitter.emit("container-created", containerInfo);
+                                    }break;
+
+                                    case "restart":{
+                                        DockerManager.emitter.emit("container-restarted", containerInfo);
+                                    }break;
+
+                                    case "start":{
+                                        DockerManager.emitter.emit("container-started", containerInfo);
+                                    }break;
+
+                                    case "kill":{
+                                        DockerManager.emitter.emit("container-killed", containerInfo);
+                                    }break;
+
+                                    case "stop":{
+                                        DockerManager.emitter.emit("container-stopped", containerInfo);
+                                    }break;
+
+                                    case "destroy":{
+                                        DockerManager.emitter.emit("container-destroyed", containerInfo);
+                                    }break;
+
+                                    case "die":{
+                                        DockerManager.emitter.emit("container-died", containerInfo);
+                                    }break;
+
+                                    default:{
+                                        Console.warn("not dealing with docker event :", event.Action);
+                                    }break;
+                                }
+
+                                // if(containerInfo.monitored){
+                                //     containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
+                                //
+                                // }
+
+
+                            }
+                        }
+
+
                     }
-
-
+                }
+                else{
+                    Console.warn("data is empty");
                 }
             } catch (e) {
                 Console.warn("[DockerService] Failed to parse docker event:", e);
@@ -329,7 +333,7 @@ export default function DockerManager(_args = null) {
      * @param {Object} options - Container options
      * @returns {string} - Result of operation //NOTE the return result is not used
      */
-    function manageContainer(manifest, options) {
+    function prepareAndRunContainer(manifest, options) {
 
         const {
             runningEnv="production",
@@ -406,6 +410,13 @@ export default function DockerManager(_args = null) {
         }
         volumeFlags = volumeFlags.join(" ");
 
+        const volumes = manifest.config.volumes
+            .map( volume => `-v ${volume}`)
+            .join(" ");
+
+        Console.debug("volumeFlags", volumeFlags);
+        Console.debug("volumes", volumes);
+
         const envVariablesPart = Object.entries(manifest.config.env)
             .map(([key, value]) => `-e ${key}=${value}`)
             .join(" ");
@@ -414,11 +425,14 @@ export default function DockerManager(_args = null) {
         const runCommand = `docker run -d \
           --name ${manifest.config.container_name} \
           --network ${manifest.config.network} \
+          --add-host=server.alkimia.localhost:host-gateway \
+          --add-host=app.alkimia.localhost:host-gateway \
+          --add-host=stressagent.alkimia.localhost:host-gateway \
           --cpus=1 \
           --memory=512m \
           -p ${manifest.config.env.PUBLIC_PORT}:${manifest.config.env.PORT} \
           ${envVariablesPart} \
-          ${volumeFlags} \
+          ${volumes} \
           ${manifest.config.container_name}`;
 
         Console.debug("About to execute command", runCommand);
@@ -443,7 +457,7 @@ export default function DockerManager(_args = null) {
      * @param {object} options
      * @return {string}
      */
-    function startMongoDb(manifest, options) {
+    function prepareAndRunMongoDb(manifest, options) {
 
         const {
             runningEnv="production",
@@ -655,8 +669,8 @@ export default function DockerManager(_args = null) {
     instance.buildBaseImage = buildBaseImage;
     instance.waitForContainerReady = waitForContainerReady;
     instance.waitUntilContainerIsHealthy = waitUntilContainerIsHealthy;
-    instance.manageContainer = manageContainer;
-    instance.startMongoDb = startMongoDb;
+    instance.prepareAndRunContainer = prepareAndRunContainer;
+    instance.prepareAndRunMongoDb = prepareAndRunMongoDb;
     instance.startMosquittoBroker = startMosquittoBroker;
     instance.stopAndRemoveContainer = stopAndRemoveContainer;
 

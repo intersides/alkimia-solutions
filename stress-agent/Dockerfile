@@ -17,6 +17,7 @@ COPY --from=base /repo/node_modules ./node_modules
 COPY --from=base /repo/libs/common ./libs/common
 COPY --from=base /repo/libs/browser ./libs/browser
 COPY --from=base /repo/libs/node ./libs/node
+COPY --from=base /repo/certs ./certs
 
 # Copy backend app to root of /app
 COPY stress-agent .

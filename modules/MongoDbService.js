@@ -69,7 +69,6 @@ export default function MongoDbService(_args=null){
     function _registerEvents(){
         DockerManager.on("container-created", function(containerInfo){
             Console.log("onEvent Container has created", containerInfo);
-
             upsertServiceState(containerInfo);
         });
 

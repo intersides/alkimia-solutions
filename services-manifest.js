@@ -1,5 +1,10 @@
+import Utilities from "@alkimia/lib/src/Utilities.js";
 
-export default function Manifest(){
+export default function Manifest(args){
+
+    let { root } = Utilities.transfer(args, {
+        root:null
+    });
 
     const Networks = {
         ALKIMIA_NET:"alkimia-net"
@@ -34,6 +39,11 @@ export default function Manifest(){
                     ports:[
                         "8080:3000"
                     ],
+                    volumes:[
+                        "/app/node_modules",
+                        `${root}/apps/backend:/app`,
+                        `${root}/libs:/app/libs`
+                    ],
                     env:{
                         ENV:"staging",
                         PUBLIC_PORT: "8080",
@@ -61,6 +71,11 @@ export default function Manifest(){
                     container_name: ServiceIds.ALKIMIA_FRONTEND,
                     ports:[
                         "7070:3000"
+                    ],
+                    volumes:[
+                        "/app/node_modules",
+                        `${root}/apps/frontend:/app`,
+                        `${root}/libs:/app/libs`
                     ],
                     env:{
                         ENV:"staging",
@@ -90,6 +105,12 @@ export default function Manifest(){
                     container_name:ServiceIds.STRESS_AGENT,
                     ports:[
                         "7777:3000"
+                    ],
+                    volumes:[
+                        "/app/node_modules",
+                        `${root}/stress-agent:/app`,
+                        `${root}/libs:/app/libs`,
+                        `${root}/certs:/app/certs`
                     ],
                     env:{
                         ENV:"staging",
@@ -143,10 +164,10 @@ export default function Manifest(){
                         MONGO_INITDB_ROOT_USERNAME:"mongoadmin",
                         MONGO_INITDB_ROOT_PASSWORD:"secret"
                     },
-                    // volumes:[
-                    //     `${dataPath}:/data/db`,
-                    //     `${keyFilePath}:/data/mongodb-keyfile`
-                    // ],
+                    volumes:[
+                        `${root}/services/mongodb/data:/data/db`,
+                        `${root}/services/mongodb/config/mongodb-keyfile:/data/mongodb-keyfile`
+                    ],
                     health_check:[
                         `--health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })' --quiet"`,
                         "--health-interval=10s",
@@ -162,7 +183,6 @@ export default function Manifest(){
 
                 }
             },
-
 
             [ServiceIds.THINGY_SENSOR]:{
                 name: ServiceIds.THINGY_SENSOR,
@@ -181,22 +201,6 @@ export default function Manifest(){
                 }
             }
 
-            // "thingy-sensor": {
-            //     name: "thingy-sensor",
-            //     monitored: false,
-            //     type: "peripheral",
-            //     protocol: "ble",
-            //     mode: "advertising", // or "GATT" in the future
-            //     config: {
-            //         device_id: "thingy52-01",
-            //         alias: "env-probe",
-            //         sensor_capabilities: ["temperature", "humidity", "air_quality"],
-            //         trigger_events: {
-            //             on_motion: "scale:backend:up",
-            //             on_idle: "scale:backend:down"
-            //         }
-            //     }
-            // }
         }
     };
 

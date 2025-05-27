@@ -14,6 +14,7 @@
     "proxy-production": "ENV=production pm2 start proxy.js",
     "docker-run-mosquitto": "docker run --name  mqtt-alkimia-broker -it -p 1883:1883 eclipse-mosquitto",
     "docker-build-base": "docker build -f Dockerfile.base -t intersides-workspace-base .",
+    "docker-run-base": "docker run --name intersides-workspace-base  -it --rm --entrypoint sh intersides-workspace-base",
     "docker-build-backend": "docker build -f apps/backend/Dockerfile -t intersides-workspace-backend .",
     "docker-debug-backend": "docker run -it --rm --entrypoint sh intersides-workspace-backend",
     "docker-run-backend": "docker run -it --rm -p 8080:3000 -e ENV=development  intersides-workspace-backend",

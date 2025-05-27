@@ -24,6 +24,7 @@ export default function ServiceDispatcher(_args=null){
     };
 
     instance.httpManifestService = function(request){
+        Console.debug("service dispatcher should determine what to server from url:", request.url, request.headers);
 
         let httpServices = Object.values(manifest.services).filter(service=>service.protocol === "http");
 

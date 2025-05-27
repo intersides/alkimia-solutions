@@ -169,7 +169,7 @@ Server.getInstance({
 
                     }
                 },
-                "/api/stress": {
+                "/stress": {
                     isProtected: false,
                     handler: (req) => {
                         Console.debug("DEBUG: req.url", req.url);

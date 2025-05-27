@@ -17,10 +17,11 @@ import Manifest from "./services-manifest.js";
 
 dotenv.config();
 
-const manifest = Manifest();
-
 const _projectRootPath = path.dirname(fileURLToPath(import.meta.url));
 
+const manifest = Manifest({
+    root:_projectRootPath
+});
 const keyPath = path.join(_projectRootPath, "./certs/key.pem");
 const certPath = path.join(_projectRootPath, "./certs/fullchain.pem");
 
@@ -50,7 +51,8 @@ let dockerManager = DockerManager.getInstance({
 });
 
 let containerMonitorService = ContainerMonitorService({
-    mongoDbService
+    mongoDbService,
+    dockerManager
 });
 
 // HTTPS proxy (port 443) with SSL termination
@@ -73,7 +75,7 @@ function proxyRequest(target, req, res){
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
-        Console.log("forwarding..." );
+        Console.log("forwarding...");
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
 
         // Pipe the response data
@@ -101,104 +103,32 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     // Log the incoming request
     Console.log(`Received request: ${req.method} ${req.url}`);
     Console.log(`Host header: ${req.headers.host}`);
+    // Console.debug(`req:`, req);
 
     // Determine the target server based on the services manifest
     const manifestService = serviceDispatcher.httpManifestService(req);
+    if (manifestService) {
+        Console.debug("Found service in manifest:", manifestService);
+        // Delegate to ContainerMonitorService
+        containerMonitorService.handleServiceRequest(manifestService, {
+            ENV: process.env.ENV
+        }).then(()=>{
+            proxyRequest(manifestService, req, res);
+        }).catch(err=>{
+            Console.error("Error handling service request:", err.message);
+            if (!res.headersSent) {
+                res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
+                res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
+            }
+        });
 
-    if(manifestService){
-        Console.debug("manifestService:", manifestService);
-
-        //use docker container only for service.type docker-service
-        switch(manifestService.type){
-
-            case "docker-service":{
-
-                dockerManager.checkContainerRunning(manifestService.config.container_name).then((isRunning) => {
-
-                    Console.debug("service:", manifestService.config.container_name, "is running:", isRunning);
-
-                    if(!isRunning){
-
-                        Console.debug(`location: target.location:${manifestService.config.location}`);
-
-                        dockerManager.manageContainer(manifestService,{
-                            runningEnv:process.env.ENV,
-                            forceRestart:false
-                        });
-
-                        dockerManager.waitForContainerReady(manifestService.config.container_name).then(() => {
-                            Console.debug(`container ${manifestService.config.container_name} is now running`);
-
-                            dockerManager.waitUntilContainerIsHealthy(manifestService.config.container_name).then((isHealthy)=>{
-                                if(isHealthy){
-                                    Console.debug(`container ${manifestService.config.container_name} is now ready`);
-                                    proxyRequest(manifestService, req, res);
-                                }
-                                else{
-
-                                    if (!res.headersSent) {
-                                        res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
-                                        res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
-                                    }
-
-                                }
-                            }).catch(err=>{
-                                Console.error(err);
-
-                                if (!res.headersSent) {
-                                    res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
-                                    res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
-                                }
-
-                            });
-
-                        }).catch(err => {
-                            Console.error(err);
-
-                            if (!res.headersSent) {
-                                res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
-                                res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
-                            }
-
-                        });
-
-                    }
-                    else{
-                        Console.debug("forwarding request :", req.url, "to service:", manifestService.config.container_name);
-                        proxyRequest(manifestService, req, res);
-                    }
-
-                }).catch(err => {
-                    Console.error(err);
-                    // NOTE: Handle error response to client
-                    if (!res.headersSent) {
-                        res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
-                        res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
-                    }
-                });
-
-            }break;
-            default:{
-                Console.warn("not prepared to handle service route object of type", manifestService.type);
-
-                if (!res.headersSent) {
-                    res.writeHead(HttpErrorStatus.Http501_Not_Implemented.status);
-                    res.end(HttpErrorStatus.Http501_Not_Implemented.statusText);
-                }
-
-            }break;
-
-        }
-
-
-
-    }
-    else{
+    } else {
         if (!res.headersSent) {
             res.writeHead(HttpErrorStatus.Http404_Not_Found.status);
             res.end(HttpErrorStatus.Http404_Not_Found.statusText);
         }
     }
+
 
 
 
@@ -274,7 +204,7 @@ Promise.all([
 
         try {
 
-            const result = dockerManager.startMongoDb(manifest.services[manifest.ServiceIds.MONGO_DB], {
+            const result = dockerManager.prepareAndRunMongoDb(manifest.services[manifest.ServiceIds.MONGO_DB], {
                 runningEnv:"development",
                 forceRestart:false
             });
@@ -340,7 +270,7 @@ Promise.all([
     //             Console.debug("service:", serviceId, "is running:", isRunning);
     //             if(!isRunning){
     //
-    //                 dockerManager.manageContainer(stressAgentManifest,{
+    //                 dockerManager.prepareAndRunContainer(stressAgentManifest,{
     //                     runningEnv:process.env.ENV,
     //                     forceRestart:false
     //                 });

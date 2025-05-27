@@ -16,9 +16,14 @@ export default function ContainerMonitorService(_args=null) {
         /**
          * @type {MongoDbService}
          */
-        mongoDbService
+        mongoDbService,
+        /**
+         * @type {DockerManager}
+         */
+        dockerManager
     } = Utilities.transfer(_args, {
-        mongoDbService:null
+        mongoDbService:null,
+        dockerManager:null
     });
 
     let cpuMonitoringIntervals = {};
@@ -397,6 +402,43 @@ export default function ContainerMonitorService(_args=null) {
             memory: memoryUsage
         };
     }
+
+    function handleServiceRequest(manifestService, options) {
+
+        return new Promise(async (resolve, reject) => {
+            const { type, config } = manifestService;
+            const { ENV } = options;
+
+            if (type === "docker-service") {
+                Console.debug(`Handling docker service: ${config.container_name}`);
+
+                const isRunning = await dockerManager.checkContainerRunning(config.container_name);
+                if (!isRunning) {
+                    Console.debug("Container not running. Preparing and running container...");
+                    dockerManager.prepareAndRunContainer(manifestService, {
+                        runningEnv: ENV,
+                        forceRestart: false
+                    });
+
+                    // Wait for container readiness
+                    await dockerManager.waitForContainerReady(config.container_name);
+                    const isHealthy = await dockerManager.waitUntilContainerIsHealthy(config.container_name);
+
+                    if (!isHealthy) {
+                        throw new Error(`Container ${config.container_name} failed health checks`);
+                    }
+                }
+                // If the container is running or successfully started, invoke proxy callback
+                resolve();
+            } else {
+                reject(new Error(`Unsupported service type: ${type}`));
+            }
+        });
+
+
+    }
+
+    instance.handleServiceRequest = handleServiceRequest;
 
     // Expose public methods
     instance.getContainerCpuUsage = getContainerCpuUsage;
