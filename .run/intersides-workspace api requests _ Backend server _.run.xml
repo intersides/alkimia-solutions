@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="intersides-workspace api requests | Backend server /" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" nameIsGenerated="true" path="$APPLICATION_CONFIG_DIR$/scratches/intersides-workspace api requests.http" executionIdentifier="Backend server /" runType="Run single request">
+    <method v="2" />
+  </configuration>
+</component>
