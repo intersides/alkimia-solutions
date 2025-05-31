@@ -11,6 +11,7 @@ module.exports = {
             "package-lock.json",
             ".git",
             ".idea/",
+            ".idea/httpRequests",
             ".idea/workspace.xml",
             ".gitignore",
             "services",

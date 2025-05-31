@@ -1,5 +1,6 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import Console from "@intersides/console";
+import {HttpErrorStatus} from "@workspace/common/enums.js";
 
 /**
  *
@@ -10,8 +11,9 @@ import Console from "@intersides/console";
 export default function ServiceDispatcher(_args=null){
     let instance = Object.create(ServiceDispatcher.prototype, {});
 
-    const { manifest } = Utilities.transfer(_args, {
-        manifest:null
+    const { manifest, dockerManager } = Utilities.transfer(_args, {
+        manifest:null,
+        dockerManager:null
     });
 
     function _init(){
@@ -19,23 +21,37 @@ export default function ServiceDispatcher(_args=null){
         return instance;
     }
 
-    instance.getService = function(_serviceName){
-        return manifest.services[_serviceName];
-    };
+    /**
+     * Example logic to evaluate if scaling is required for a given service
+     */
+    function checkScalingCondition(serviceName) {
 
-    instance.httpManifestService = function(request){
+        let manifestService = manifest.services[serviceName];
+        Console.debug("serviceName", serviceName);
+
+        const { maxInstances = 1 } = manifestService; // Optionally define max instances in the manifest
+        Console.debug("maxInstances", maxInstances);
+        const currentInstances = dockerManager.getContainerInstances(serviceName);
+        Console.debug("currentInstances", currentInstances);
+
+        // Implement specific scaling logic here (e.g., CPU/memory usage, request rate, etc.)
+
+        return currentInstances < maxInstances; // No scaling needed
+    }
+
+    function getServiceFromRequest(request){
         Console.debug("service dispatcher should determine what to server from url:", request.url, request.headers);
-
-        let httpServices = Object.values(manifest.services).filter(service=>service.protocol === "http");
 
         let serviceInManifest = null;
         switch(request.url){
-            case request.url.startsWith("/api/") ||  request.headers.host === "server.alkimia.localhost":{
+
+            case request.headers.host === "server.alkimia.localhost":
+            case request.url.startsWith("/api/"):{
                 serviceInManifest = manifest.services["alkimia-backend"];
             }break;
 
             default:{
-                serviceInManifest = httpServices.find(service=>service.config.public_domain === request.headers.host);
+                serviceInManifest = Object.values(manifest.services).find(service=>service.config.public_domain === request.headers.host);
             }break;
         }
 
@@ -46,28 +62,10 @@ export default function ServiceDispatcher(_args=null){
 
         return serviceInManifest;
 
-    };
+    }
 
-    instance.socketManifestService = function(request){
-
-        let socketServices = Object.values(manifest.services).filter(service=>service.protocol === "mqtt" || service.protocol === "ws" || service.protocol === "wss");
-
-        let serviceInManifest = null;
-        switch(request.url){
-            default:{
-                serviceInManifest = socketServices.find(service=>service.config.public_domain === request.headers.host);
-            }break;
-        }
-
-        if(!serviceInManifest){
-            Console.error("service manifest not found for request.url", request.url);
-            return null;
-        }
-
-
-        return serviceInManifest;
-
-    };
+    instance.getServiceFromRequest = getServiceFromRequest;
+    instance.checkScalingCondition = checkScalingCondition;
 
 
     return _init();

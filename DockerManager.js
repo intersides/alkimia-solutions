@@ -3,14 +3,31 @@ import {EventEmitter} from "node:events";
 import {exec, execSync} from "node:child_process";
 import path from "node:path";
 import Console from "@intersides/console";
+import ServiceDispatcher from "./modules/ServiceDispatcher.js";
 import fs from "node:fs";
 
+/**
+ * Creates a Docker manager instance for container lifecycle management
+ * @example
+ * const dockerManager = DockerManager({
+ *   root: '/path/to/project',
+ *   envVars: process.env,
+ *   serviceDispatcher: serviceDispatcherInstance
+ * });
+ *
+ * @param {Object} _args - Configuration options for the Docker manager
+ * @param {string} _args.root - Root directory path for the project
+ * @param {Object} _args.envVars - Environment variables for container configuration
+ * @param {ServiceDispatcher} _args.serviceDispatcher - Service dispatcher instance for service management
+ * @returns {Object} The DockerManager instance * @return {*}
+ * @constructor
+ */
 export default function DockerManager(_args = null) {
     const instance = Object.create(DockerManager.prototype);
-    const {root, envVars, serviceDispatcher} = Utilities.transfer(_args, {
+    const {root, envVars, manifest} = Utilities.transfer(_args, {
         root:null,
         envVars: null,
-        serviceDispatcher:null
+        manifest:null
     });
 
     function _init() {
@@ -18,12 +35,36 @@ export default function DockerManager(_args = null) {
         return instance;
     }
 
+    function emitDockerEvent(serviceId){
+
+        let container = getContainer(serviceId);
+        if(container){
+            Console.info("About to emit event for ", container);
+            Console.debug("data type of container.Created is:", typeof container.Created);
+            DockerManager.emitter.emit("docker-update-event", {
+                state:container.State.Status,
+                instance_id:container.Id,
+                instance_name:serviceId,
+                env: process.env.ENV,
+                timestamp:  new Date(container.Created),
+                data:manifest.services[serviceId],
+                updatedAt:new Date()
+
+            });
+        }
+        else{
+            Console.warn(`Cannot determine running container with service id: ${serviceId}`);
+        }
+
+
+    }
+
     function listenToContainerEvents() {
         const eventCommand = "docker events --format '{{json .}}'";
 
-        const child = exec(eventCommand);
+        const eventStream = exec(eventCommand);
 
-        child.stdout.on("data", (data) => {
+        eventStream.stdout.on("data", (data) => {
             try {
                 if( Utilities.isNonemptyString(data.trim())){
                     const lines = data.trim().split("\n");
@@ -32,6 +73,7 @@ export default function DockerManager(_args = null) {
                         let event = null;
                         try{
                             event = JSON.parse(line);
+                            // Console.debug("Container event:", event);
                         }
                         catch(e){
                             Console.error(e);
@@ -50,69 +92,24 @@ export default function DockerManager(_args = null) {
                                 "kill",
                                 "oom"
                             ].includes(event.Action)) {
-                                const name = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
+                                const containerName = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
+                                const containerId = event.Actor?.ID || null;
 
                                 const eventTime = new Date(event.timeNano / 1e6); // to milliseconds
 
-                                Console.log(`[DockerService] Container ${name} ${event.Action}`);
+                                Console.log(`[DockerService] Container ${containerName} ${event.Action}` );
+
                                 DockerManager.emitter.emit("event", {
                                     type:"docker-container",
                                     timestamp: eventTime,
                                     data:{
-                                        name,
+                                        container_name:containerName,
+                                        container_id:containerId,
                                         action: event.Action
                                     }
                                 });
 
-                                let serviceManifest = serviceDispatcher.getService(name);
-
-                                let containerInfo = {
-                                    ...serviceManifest,
-                                    env: envVars.ENV,
-                                    state:event.Action,
-                                    id: event.ID,
-                                    timestamp: eventTime
-                                };
-
-                                switch(event.Action){
-                                    case "create":{
-                                        DockerManager.emitter.emit("container-created", containerInfo);
-                                    }break;
-
-                                    case "restart":{
-                                        DockerManager.emitter.emit("container-restarted", containerInfo);
-                                    }break;
-
-                                    case "start":{
-                                        DockerManager.emitter.emit("container-started", containerInfo);
-                                    }break;
-
-                                    case "kill":{
-                                        DockerManager.emitter.emit("container-killed", containerInfo);
-                                    }break;
-
-                                    case "stop":{
-                                        DockerManager.emitter.emit("container-stopped", containerInfo);
-                                    }break;
-
-                                    case "destroy":{
-                                        DockerManager.emitter.emit("container-destroyed", containerInfo);
-                                    }break;
-
-                                    case "die":{
-                                        DockerManager.emitter.emit("container-died", containerInfo);
-                                    }break;
-
-                                    default:{
-                                        Console.warn("not dealing with docker event :", event.Action);
-                                    }break;
-                                }
-
-                                // if(containerInfo.monitored){
-                                //     containerMonitorService.monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
-                                //
-                                // }
-
+                                emitDockerEvent(containerName);
 
                             }
                         }
@@ -121,21 +118,72 @@ export default function DockerManager(_args = null) {
                     }
                 }
                 else{
-                    Console.warn("data is empty");
+                    Console.warn("container event has no data");
                 }
             } catch (e) {
                 Console.warn("[DockerService] Failed to parse docker event:", e);
             }
         });
 
-        child.stderr.on("data", (err) => {
+        eventStream.stderr.on("data", (err) => {
             Console.error("[DockerService] Error from docker events:", err);
         });
 
-        child.on("exit", (code) => {
+        eventStream.on("exit", (code) => {
             Console.error(`[DockerService] docker events process exited with code ${code}`);
         });
     }
+
+    function getContainer(containerName) {
+        try {
+            // Check if the container exists
+            const existsCommand = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
+            const existsResult = execSync(existsCommand, {encoding: "utf8"});
+            if (parseInt(existsResult.trim()) === 0) {
+                Console.warn(`Container ${containerName} NOT FOUND!`);
+                return null;
+            }
+
+            // If it exists, check if it's running
+            const runningCommand = `docker inspect --format '{{json .}}' ${containerName}`;
+            const runningResult = execSync(runningCommand, {encoding: "utf8"});
+            Console.debug("runningResult:", runningResult);
+            return JSON.parse(runningResult.trim()) ;
+        } catch (error) {
+            Console.error(`Error checking container status for ${containerName}:`, error);
+            return null;
+        }
+    }
+
+    function getContainerInstances(image) {
+        try {
+            let filterCmd = `--filter ancestor=${image}`;
+
+            const command = `docker ps -a --format '{{json .}}' ${filterCmd}`;
+            const result = execSync(command, { encoding: "utf8" });
+
+            const containers = result
+                .trim()
+                .split("\n")
+                .map(line => JSON.parse(line));
+
+            return containers;
+        } catch (error) {
+            Console.error("Error retrieving container instances:", error.message);
+            return [];
+        }
+    }
+
+    async function checkContainerRunning(containerName){
+        let container = getContainer(containerName);
+        if(container){
+            return container?.State?.Status === "running";
+        }
+        else{
+            return false;
+        }
+    }
+
 
     /**
      * Get container status: "running", "stopped", "not_exists", or "error"
@@ -236,24 +284,6 @@ export default function DockerManager(_args = null) {
     }
 
     /**
-     * Run a command asynchronously
-     * @param {string} command - Command to run
-     * @returns {Promise<string>} - Command output
-     */
-    function runCommand(command) {
-        return new Promise((resolve, reject) => {
-            exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    Console.error(`Error: ${stderr}`);
-                    reject(error);
-                    return;
-                }
-                resolve(stdout.trim());
-            });
-        });
-    }
-
-    /**
      * Wait for container to be ready
      * @param {string} containerName - Container name
      * @param {number} [timeoutMs=3000] - Timeout in milliseconds
@@ -267,14 +297,30 @@ export default function DockerManager(_args = null) {
                 const status = getContainerStatus(containerName);
                 Console.debug(`${containerName} status:`, status);
 
-                DockerManager.emitter.emit(status, {
-                    name: containerName,
-                    env: envVars.ENV,
-                    domain: envVars.DOMAIN
-                });
+                //NOTE DISABLED
+                // DockerManager.emitter.emit(status, {
+                //     name: containerName,
+                //     env: envVars.ENV,
+                //     domain: envVars.DOMAIN
+                // });
+
                 if (status === "running") {
-                    Console.log(`Container ${containerName} is ready!`);
+                    Console.log(`Container ${containerName} is running!`);
+
+                    let container = getContainer(containerName);
+                    Console.debug("container", container);
+
+                    let containerInfo = {
+                        state:container.State.Status,
+                        instance_id:container.Id,
+                        instance_name:containerName,
+                        env: envVars.ENV,
+                        timestamp: container.Created,
+                        data:manifest.services[containerName]
+                    };
+
                     resolve(true);
+
                 } else {
                     const error = new Error(`Container ${containerName} start timeout error (status: ${status})`);
                     Console.error(error.message);
@@ -441,12 +487,13 @@ export default function DockerManager(_args = null) {
             stdio: "inherit"
         });
 
-        DockerManager.emitter.emit("container-started", {
-            name: manifest.config.container_name,
-            env: runningEnv,
-            domain: manifest.config.public_domain,
-            port: manifest.config.external_port
-        });
+        //NOTE DISABLED
+        // DockerManager.emitter.emit("container-started", {
+        //     name: manifest.config.container_name,
+        //     env: runningEnv,
+        //     domain: manifest.config.public_domain,
+        //     port: manifest.config.external_port
+        // });
 
         return "created_new";
     }
@@ -603,12 +650,13 @@ export default function DockerManager(_args = null) {
         // Start polling
         pollForMongoDB();
 
-        DockerManager.emitter.emit("container-started", {
-            name: manifest.config.container_name,
-            env: runningEnv,
-            domain: manifest.config.public_domain,
-            port: manifest.config.external_port
-        });
+        //NOTE: DISABLED
+        // DockerManager.emitter.emit("container-started", {
+        //     name: manifest.config.container_name,
+        //     env: runningEnv,
+        //     domain: manifest.config.public_domain,
+        //     port: manifest.config.external_port
+        // });
 
         return "created_new";
     }
@@ -662,6 +710,7 @@ export default function DockerManager(_args = null) {
     }
 
     // Expose methods on the instance
+    instance.getContainerInstances = getContainerInstances;
     instance.getContainerStatus = getContainerStatus;
     instance.doesImageExist = doesImageExist;
     instance.doesNetworkExist = doesNetworkExist;
@@ -673,22 +722,9 @@ export default function DockerManager(_args = null) {
     instance.prepareAndRunMongoDb = prepareAndRunMongoDb;
     instance.startMosquittoBroker = startMosquittoBroker;
     instance.stopAndRemoveContainer = stopAndRemoveContainer;
-
-
-    instance.checkContainerRunning = async (containerName) => {
-
-        let status = getContainerStatus(containerName);
-
-        DockerManager.emitter.emit(status, {
-            name: containerName,
-            env: envVars.ENV,
-            domain: envVars.DOMAIN
-        });
-
-        return status === "running";
-
-
-    };
+    instance.checkContainerRunning = checkContainerRunning;
+    instance.getContainer = getContainer;
+    instance.emitDockerEvent = emitDockerEvent;
 
     // Event handling
 

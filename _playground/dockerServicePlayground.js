@@ -31,9 +31,9 @@ dockerService.on("container-stressed", (container) => {
     console.log(`container ${container.name} is under stress`);
 });
 
-if(! dockerService.imageExists("intersides-workspace-base")){
-    dockerService.buildBaseImage();
-}
+// if(! dockerService.imageExists("intersides-workspace-base")){
+//     dockerService.buildBaseImage();
+// }
 
 // dockerService.startContainer({
 //     name:"intersides-workspace-backend",

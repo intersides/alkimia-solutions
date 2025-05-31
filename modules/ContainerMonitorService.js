@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import Console from "@intersides/console";
 import {utilities as Utilities} from "@alkimia/lib";
 import MongoDbService from "./MongoDbService.js";
+import ServiceDispatcher from "./ServiceDispatcher.js";
 import DockerManager from "../DockerManager.js";
 
 /**
@@ -20,10 +21,15 @@ export default function ContainerMonitorService(_args=null) {
         /**
          * @type {DockerManager}
          */
-        dockerManager
+        dockerManager,
+        /**
+         * @type {ServiceDispatcher}
+         */
+        serviceDispatcher
     } = Utilities.transfer(_args, {
         mongoDbService:null,
-        dockerManager:null
+        dockerManager:null,
+        serviceDispatcher:null
     });
 
     let cpuMonitoringIntervals = {};
@@ -210,6 +216,12 @@ export default function ContainerMonitorService(_args=null) {
                 else{
                     Console.info("untreatedEvent", untreatedEvent);
                 }
+
+                //spawn the same service !!
+                if(serviceDispatcher.checkScalingCondition(containerName)){
+                    Console.debug(containerName, "should scale up" );
+                }
+
             }
 
             mongoDbService.upsertMonitoringEvent(reading);
@@ -403,7 +415,13 @@ export default function ContainerMonitorService(_args=null) {
         };
     }
 
-    function handleServiceRequest(manifestService, options) {
+    /**
+     *
+     * @param manifestService
+     * @param options
+     * @return {Promise<object>} //returning the service instance that can handle the request
+     */
+    function ensureServiceAvailable(manifestService, options) {
 
         return new Promise(async (resolve, reject) => {
             const { type, config } = manifestService;
@@ -423,9 +441,15 @@ export default function ContainerMonitorService(_args=null) {
                     // Wait for container readiness
                     await dockerManager.waitForContainerReady(config.container_name);
                     const isHealthy = await dockerManager.waitUntilContainerIsHealthy(config.container_name);
-
                     if (!isHealthy) {
                         throw new Error(`Container ${config.container_name} failed health checks`);
+                    }
+                    else{
+                        Console.info(`container ${config.container_name} is healthy`);
+
+                        //once the container is healthy it should be added to a register of running containers and tagged by an instance id
+
+
                     }
                 }
                 // If the container is running or successfully started, invoke proxy callback
@@ -435,10 +459,9 @@ export default function ContainerMonitorService(_args=null) {
             }
         });
 
-
     }
 
-    instance.handleServiceRequest = handleServiceRequest;
+    instance.ensureServiceAvailable = ensureServiceAvailable;
 
     // Expose public methods
     instance.getContainerCpuUsage = getContainerCpuUsage;

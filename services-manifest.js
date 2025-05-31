@@ -13,9 +13,9 @@ export default function Manifest(args){
     const ServiceIds = {
         ALKIMIA_BACKEND:"alkimia-backend",
         ALKIMIA_FRONTEND:"alkimia-frontend",
+        STRESS_AGENT:"alkimia-stress-agent",
         MONGO_DB:"mongodb-alkimia-storage",
         MQTT_BROKER:"mqtt-alkimia-broker",
-        STRESS_AGENT:"alkimia-stress-agent",
         THINGY_SENSOR:"thingy-sensor"
     };
 
@@ -26,6 +26,7 @@ export default function Manifest(args){
             [ServiceIds.ALKIMIA_BACKEND]:{
                 name: ServiceIds.ALKIMIA_BACKEND,
                 monitored:true,
+                maxInstances:10,
                 type:"docker-service",
                 protocol: "http",
                 mode: "rest-api",
@@ -58,7 +59,8 @@ export default function Manifest(args){
             },
             [ServiceIds.ALKIMIA_FRONTEND]:{
                 name: ServiceIds.ALKIMIA_FRONTEND,
-                monitored:true,
+                monitored:false,
+                maxInstances:1,
                 type:"docker-service",
                 protocol: "http",
                 mode: "rest-api",
@@ -93,6 +95,7 @@ export default function Manifest(args){
             [ServiceIds.STRESS_AGENT]:{
                 name: ServiceIds.STRESS_AGENT,
                 monitored:false,
+                maxInstances:1,
                 type:"docker-service",
                 protocol: "http",
                 mode: "rest-api",
@@ -124,12 +127,12 @@ export default function Manifest(args){
                     internal_port:3000
                 }
             },
-
-
             [ServiceIds.MQTT_BROKER]:{
                 name: ServiceIds.MQTT_BROKER,
+                instanceId:null,
                 monitored:false,
                 type:"docker-service",
+                maxInstances:1,
                 protocol: "mqtt",
                 mode: "message-broker", // or "pubsub"
                 config:{
@@ -147,7 +150,8 @@ export default function Manifest(args){
             },
             [ServiceIds.MONGO_DB]:{
                 name: ServiceIds.MONGO_DB,
-                monitored:false,
+                monitored:true,
+                maxInstances:1,
                 type:"docker-service",
                 protocol: "mqtt",
                 mode: "message-broker", // or "pubsub"
@@ -183,7 +187,6 @@ export default function Manifest(args){
 
                 }
             },
-
             [ServiceIds.THINGY_SENSOR]:{
                 name: ServiceIds.THINGY_SENSOR,
                 monitored: false,

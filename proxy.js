@@ -30,14 +30,6 @@ const cert = fs.readFileSync(certPath, {encoding: "utf-8"});
 
 Console.info("environment variables:", process.env);
 
-let serviceDispatcher = ServiceDispatcher({
-    manifest
-});
-
-let mqttService = MqttService({
-    uri: process.env.MQTT_BROKER_URL
-});
-
 let mongoDbService = MongoDbService({
     uri: process.env.MONGO_DB_URI,
     dbName: process.env.MONGO_DB_NAME
@@ -47,12 +39,18 @@ let mongoDbService = MongoDbService({
 let dockerManager = DockerManager.getInstance({
     root:_projectRootPath,
     envVars:process.env,
-    serviceDispatcher
+    manifest
+});
+
+let serviceDispatcher = ServiceDispatcher({
+    manifest,
+    dockerManager
 });
 
 let containerMonitorService = ContainerMonitorService({
     mongoDbService,
-    dockerManager
+    dockerManager,
+    serviceDispatcher
 });
 
 // HTTPS proxy (port 443) with SSL termination
@@ -105,20 +103,20 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     Console.log(`Host header: ${req.headers.host}`);
     // Console.debug(`req:`, req);
 
-    // Determine the target server based on the services manifest
-    const manifestService = serviceDispatcher.httpManifestService(req);
+    //Determine the target server based on the req
+    const manifestService = serviceDispatcher.getServiceFromRequest(req);
     if (manifestService) {
         Console.debug("Found service in manifest:", manifestService);
         // Delegate to ContainerMonitorService
-        containerMonitorService.handleServiceRequest(manifestService, {
+        containerMonitorService.ensureServiceAvailable(manifestService, {
             ENV: process.env.ENV
         }).then(()=>{
             proxyRequest(manifestService, req, res);
-        }).catch(err=>{
+        }).catch(HttpError=>{
             Console.error("Error handling service request:", err.message);
             if (!res.headersSent) {
-                res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
-                res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
+                res.writeHead(HttpError.status);
+                res.end(HttpError.statusText);
             }
         });
 
@@ -129,9 +127,6 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
         }
     }
 
-
-
-
 });
 
 httpsServer.on("upgrade", (req, socket, head) => {
@@ -139,7 +134,7 @@ httpsServer.on("upgrade", (req, socket, head) => {
     Console.log("REQ URL:", req.url);
     Console.log("REQ HEADERS:", req.headers);
 
-    const socketManifestService = serviceDispatcher.socketManifestService(req);
+    const socketManifestService = serviceDispatcher.getServiceFromRequest(req);
 
     if(socketManifestService){
 
@@ -209,13 +204,13 @@ Promise.all([
                 forceRestart:false
             });
 
-            Console.debug(`MongoDB operation result: ${result}`);
-
             if (result === "already_running") {
+                dockerManager.emitDockerEvent(serviceId);
                 resolve(serviceId);
             } else {
                 dockerManager.waitUntilContainerIsHealthy(serviceId)
                     .then(() => {
+                        dockerManager.emitDockerEvent(serviceId);
                         resolve(serviceId);
                     })
                     .catch(err => {
@@ -240,12 +235,14 @@ Promise.all([
             Console.debug(`MQTT broker operation result:${result}`);
 
             if(result === "alredy_running"){
+                dockerManager.emitDockerEvent(serviceId);
                 resolve(serviceId);
             }
             else{
                 // For both "started_existing" and "created_new" cases, wait for readiness
                 dockerManager.waitForContainerReady(serviceId)
                     .then(() => {
+                        dockerManager.emitDockerEvent(serviceId);
                         resolve(serviceId);
                     })
                     .catch(err => {
@@ -320,6 +317,10 @@ Promise.all([
 ]).then(resolved=>{
 
     Console.info("resolved: service IDS:", resolved);
+
+    MqttService({
+        uri: process.env.MQTT_BROKER_URL
+    });
 
     httpsServer.listen(443, () => {
         Console.log("HTTPS proxy server listening on port 443");

@@ -13,6 +13,10 @@ export default function MongoDbService(_args=null){
 
     let instance = Object.create(MongoDbService.prototype, {});
 
+    let onConnected = function(){
+        throw new Error("method onConnected must be delegated");
+    };
+
     const {uri, dbName} = Utilities.transfer(_args, {
         uri:null,
         dbName:null
@@ -37,14 +41,14 @@ export default function MongoDbService(_args=null){
             serverSelectionTimeoutMS:3000,
             socketTimeoutMS: 45000
         });
+
         mongoClient.connect().then( async function(client){
-            Console.log("db connected to", uri);
             if(Utilities.isNonemptyString(dbName)){
                 db = client.db(dbName);
                 Console.log(`${dbName} database has been set`);
 
                 services = db.collection("services");
-                events = db.collection("session-events");
+                events = db.collection("events-services");
                 monitors = db.collection("monitors");
 
                 const eventsChangeStream = events.watch();
@@ -67,48 +71,49 @@ export default function MongoDbService(_args=null){
     }
 
     function _registerEvents(){
-        DockerManager.on("container-created", function(containerInfo){
-            Console.log("onEvent Container has created", containerInfo);
-            upsertServiceState(containerInfo);
+
+        DockerManager.on("docker-update-event", function(eventData){
+            Console.log(`onEvent Container ${eventData.name} 'docker-update-event':${eventData.state}`, eventData);
+            upsertServiceState(eventData);
         });
 
-        DockerManager.on("container-started", function(containerInfo){
-            Console.info("onEvent Container has started", containerInfo);
-            upsertServiceState(containerInfo);
-        });
-
-        DockerManager.on("running", function(containerInfo){
-            Console.info(`onEvent Container ${containerInfo.name} running`);
-            upsertServiceState(containerInfo);
-        });
-
-        DockerManager.on("stopped", function(containerInfo){
-            Console.warn(`onEvent Container ${containerInfo.name} stopped`);
-            upsertServiceState(containerInfo);
-        });
-        DockerManager.on("error", function(containerInfo){
-            Console.error(`onEvent Container ${containerInfo.name} error`);
-            upsertServiceState(containerInfo);
-        });
-        DockerManager.on("container-stopped", function(containerInfo){
-            Console.warn(`onEvent Container ${containerInfo.name} stopped`);
-            upsertServiceState(containerInfo);
-        });
-        DockerManager.on("container-died", function(containerInfo){
-            Console.warn(`onEvent Container ${containerInfo.name} died`);
-            upsertServiceState(containerInfo);
-        });
-        DockerManager.on("container-destroyed", function(containerInfo){
-            Console.error(`onEvent Container ${containerInfo.name} destroy`);
-            upsertServiceState(containerInfo);
-        });
-
-        DockerManager.on("not_exists", function(containerInfo){
-            Console.error(`onEvent Container not_exists ${containerInfo.name}`);
-        });
+        // DockerManager.on("container-started", function(containerInfo){
+        //     Console.info(`onEvent Container ${containerInfo.name} 'container-started'`, containerInfo);
+        //     upsertServiceState(containerInfo);
+        // });
+        //
+        // DockerManager.on("running", function(containerInfo){
+        //     Console.info(`onEvent Container ${containerInfo.name} running`);
+        //     upsertServiceState(containerInfo);
+        // });
+        //
+        // DockerManager.on("stopped", function(containerInfo){
+        //     Console.warn(`onEvent Container ${containerInfo.name} stopped`);
+        //     upsertServiceState(containerInfo);
+        // });
+        // DockerManager.on("error", function(containerInfo){
+        //     Console.error(`onEvent Container ${containerInfo.name} error`);
+        //     upsertServiceState(containerInfo);
+        // });
+        // DockerManager.on("container-stopped", function(containerInfo){
+        //     Console.warn(`onEvent Container ${containerInfo.name} 'container-stopped'`);
+        //     upsertServiceState(containerInfo);
+        // });
+        // DockerManager.on("container-died", function(containerInfo){
+        //     Console.warn(`onEvent Container ${containerInfo.name} 'container-died'`);
+        //     upsertServiceState(containerInfo);
+        // });
+        // DockerManager.on("container-destroyed", function(containerInfo){
+        //     Console.error(`onEvent Container ${containerInfo.name} 'container-destroyed'`);
+        //     upsertServiceState(containerInfo);
+        // });
+        //
+        // DockerManager.on("not_exists", function(containerInfo){
+        //     Console.error(`onEvent Container ${containerInfo.name} 'not_exists'`);
+        // });
 
         DockerManager.on("event", function(event){
-            Console.error("onEvent Container event:", event);
+            Console.debug(`onEvent Container event[${event.type}]:`, event);
             switch(event.type){
                 case "docker-container":{
                     _storeEvent(event.type, event);
@@ -123,9 +128,10 @@ export default function MongoDbService(_args=null){
 
 
     function upsertServiceState(serviceState){
+        Console.debug("upsertServiceState", serviceState);
         if(services){
             services.findOneAndUpdate(
-                { name: serviceState.name }, // Filter: Match by 'container'
+                { instance_id: serviceState.instance_id }, // Filter: Match by 'container'
                 { $set: serviceState },                // Update: Set the full 'data' object
                 {
                     upsert: true,
@@ -218,6 +224,12 @@ export default function MongoDbService(_args=null){
     instance.storeEvent = _storeEvent;
     instance.upsertServiceState = upsertServiceState;
     instance.upsertMonitoringEvent = _upsertMonitoringEvent;
+
+    instance.onConnected = function(_delegate){
+        if(typeof _delegate === "function"){
+            onConnected = _delegate;
+        }
+    };
 
     return _init();
 }
