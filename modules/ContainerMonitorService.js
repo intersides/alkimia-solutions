@@ -428,28 +428,27 @@ export default function ContainerMonitorService(_args=null) {
             const { ENV } = options;
 
             if (type === "docker-service") {
+
                 Console.debug(`Handling docker service: ${config.container_name}`);
 
-                const isRunning = await dockerManager.checkContainerRunning(config.container_name);
+                let containers = dockerManager.getContainersByFilter(config.container_name, "group", "running");
+                const isRunning = containers?.length > 0;
                 if (!isRunning) {
                     Console.debug("Container not running. Preparing and running container...");
-                    dockerManager.prepareAndRunContainer(manifestService, {
+                    let containerName = dockerManager.prepareAndRunContainer(manifestService, {
                         runningEnv: ENV,
                         forceRestart: false
                     });
 
                     // Wait for container readiness
-                    await dockerManager.waitForContainerReady(config.container_name);
-                    const isHealthy = await dockerManager.waitUntilContainerIsHealthy(config.container_name);
+                    await dockerManager.waitForContainerReady(containerName);
+                    const isHealthy = await dockerManager.waitUntilContainerIsHealthy(containerName);
                     if (!isHealthy) {
-                        throw new Error(`Container ${config.container_name} failed health checks`);
+                        throw new Error(`Container ${containerName} failed health checks`);
                     }
                     else{
-                        Console.info(`container ${config.container_name} is healthy`);
-
+                        Console.info(`container ${containerName} is healthy`);
                         //once the container is healthy it should be added to a register of running containers and tagged by an instance id
-
-
                     }
                 }
                 // If the container is running or successfully started, invoke proxy callback

@@ -59,13 +59,45 @@ const sslOptions = {
     cert
 };
 
-function proxyRequest(target, req, res){
-    Console.log("Routing to:", target);
+async function cleanupOrphanedServiceRecords(){
+    //clear services entries if containers do not exist
+    let allContainers = await mongoDbService.getAllContainers();
+    const containerIds = allContainers
+        .map(container=> container["instance_id"]);
+    //filter non-existing containers
+    containerIds.forEach(id=>{
+        let status = dockerManager.getContainerStatus(id, "id");
+        if(status === "not_exists"){
+            mongoDbService.deleteContainerById(id);
+        }
+    });
+}
 
-    let externalPort = target.config.ports[0].split(":")[0];
+
+function proxyRequest(serviceManifes, req, res){
+    Console.log("Routing to:", serviceManifes);
+
+    let containers = dockerManager.getContainersByFilter(serviceManifes.config.container_name, "group");
+
+    //TODO: improve the algorithm to determine the best service from the group
+    let container = null;
+    if(containers?.length > 0){
+        //TODO: this is not enough... it must determine the best candidate container
+        //NOTE at the moment it is taking the first only
+        container = containers[0];
+    }
+    else{
+        Console.error("no containers running under the group ", serviceManifes.config.container_name);
+    }
+    // Console.debug("container->:", container);
+
+    let externalPort = dockerManager.extractExternalPort(container?.["Ports"]);
+    if(!externalPort){
+        throw Error("failed to retrieve port");
+    }
 
     const proxyReq = http.request({
-        host: target.config.host,
+        host: serviceManifes.config.host,
         port: externalPort,
         path: req.url,
         method: req.method,
@@ -73,7 +105,7 @@ function proxyRequest(target, req, res){
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
-        Console.log("forwarding...");
+        Console.log("forwarding to...", serviceManifes.config.host+":"+externalPort);
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
 
         // Pipe the response data
@@ -101,7 +133,6 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     // Log the incoming request
     Console.log(`Received request: ${req.method} ${req.url}`);
     Console.log(`Host header: ${req.headers.host}`);
-    // Console.debug(`req:`, req);
 
     //Determine the target server based on the req
     const manifestService = serviceDispatcher.getServiceFromRequest(req);
@@ -112,11 +143,11 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
             ENV: process.env.ENV
         }).then(()=>{
             proxyRequest(manifestService, req, res);
-        }).catch(HttpError=>{
-            Console.error("Error handling service request:", err.message);
+        }).catch(error=>{
+            Console.error("Error handling service request:", error.message);
             if (!res.headersSent) {
-                res.writeHead(HttpError.status);
-                res.end(HttpError.statusText);
+                res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
+                res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
             }
         });
 
@@ -251,7 +282,7 @@ Promise.all([
                     });
             }
         }catch (err) {
-            Console.error(err.message);
+            Console.error(err);
             reject(`Failed to start ${serviceId}: ${err.message}`);
         }
 
@@ -314,9 +345,13 @@ Promise.all([
     //
     // })
 
-]).then(resolved=>{
+]).then( async (resolved)=>{
 
     Console.info("resolved: service IDS:", resolved);
+
+    //TODO: it needs to be adjusted
+    // setInterval(cleanupOrphanedServiceRecords, 5000);
+    // await cleanupOrphanedServiceRecords();
 
     MqttService({
         uri: process.env.MQTT_BROKER_URL

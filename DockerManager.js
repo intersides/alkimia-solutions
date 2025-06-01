@@ -4,6 +4,7 @@ import {exec, execSync} from "node:child_process";
 import path from "node:path";
 import Console from "@intersides/console";
 import ServiceDispatcher from "./modules/ServiceDispatcher.js";
+import { ObjectId } from "mongodb";
 import fs from "node:fs";
 
 /**
@@ -39,15 +40,21 @@ export default function DockerManager(_args = null) {
 
         let container = getContainer(serviceId);
         if(container){
-            Console.info("About to emit event for ", container);
-            Console.debug("data type of container.Created is:", typeof container.Created);
+            let serviceGroup = container.Config.Labels["service.group"];
+            let serviceManifest = manifest.services[serviceGroup];
+            let serviceInstance = container.Config.Labels["service.instance"];
+            let hostPort = container.NetworkSettings.Ports[`${serviceManifest.config.internal_port}/tcp`][0]["HostPort"];
+
             DockerManager.emitter.emit("docker-update-event", {
                 state:container.State.Status,
                 instance_id:container.Id,
                 instance_name:serviceId,
                 env: process.env.ENV,
+                serviceGroup,
+                serviceInstance,
+                hostPort,
                 timestamp:  new Date(container.Created),
-                data:manifest.services[serviceId],
+                data:serviceManifest,
                 updatedAt:new Date()
 
             });
@@ -102,6 +109,7 @@ export default function DockerManager(_args = null) {
                                 DockerManager.emitter.emit("event", {
                                     type:"docker-container",
                                     timestamp: eventTime,
+                                    state: event.Action,
                                     data:{
                                         container_name:containerName,
                                         container_id:containerId,
@@ -134,18 +142,17 @@ export default function DockerManager(_args = null) {
         });
     }
 
-    function getContainer(containerName) {
+    function getContainerById(containerId) {
         try {
             // Check if the container exists
-            const existsCommand = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
+            const existsCommand = `docker ps -a -q -f id=${containerId} | wc -l`;
             const existsResult = execSync(existsCommand, {encoding: "utf8"});
             if (parseInt(existsResult.trim()) === 0) {
-                Console.warn(`Container ${containerName} NOT FOUND!`);
                 return null;
             }
 
             // If it exists, check if it's running
-            const runningCommand = `docker inspect --format '{{json .}}' ${containerName}`;
+            const runningCommand = `docker inspect --format '{{json .}}' ${containerId}`;
             const runningResult = execSync(runningCommand, {encoding: "utf8"});
             Console.debug("runningResult:", runningResult);
             return JSON.parse(runningResult.trim()) ;
@@ -155,20 +162,75 @@ export default function DockerManager(_args = null) {
         }
     }
 
-    function getContainerInstances(image) {
+    function getContainer(id, property="name") {
         try {
-            let filterCmd = `--filter ancestor=${image}`;
+            // Check if the container exists
+            const existsCommand = `docker ps -a -q -f ${property}=^/${id}$ | wc -l`;
+            const existsResult = execSync(existsCommand, {encoding: "utf8"});
+            if (parseInt(existsResult.trim()) === 0) {
+                Console.warn(`Container ${id} NOT FOUND!`);
+                return null;
+            }
 
-            const command = `docker ps -a --format '{{json .}}' ${filterCmd}`;
+            // If it exists, check if it's running
+            const runningCommand = `docker inspect --format '{{json .}}' ${id}`;
+            const runningResult = execSync(runningCommand, {encoding: "utf8"});
+            return JSON.parse(runningResult.trim()) ;
+        } catch (error) {
+            Console.error(`Error checking container status for ${id}:`, error);
+            return null;
+        }
+    }
+
+    function getAllManifestContainers(){
+        let containers = Object.keys(manifest.services).map(serviceId=>{
+            return getContainersByFilter(serviceId);
+        });
+        return containers;
+
+    }
+
+    /**
+     *
+     * @param {string} filterValue
+     * @param {string} filterType
+     * @param {string | null} state - "running" "created" "restarting" "running" "removing" "paused" "exited" "dead"
+     * @return {any[]|*[]|null}
+     */
+    function getContainersByFilter(filterValue, filterType="image", state=null) {
+        try {
+            let filterCmd = [];
+
+            // Add filter by image or group
+            if(filterType === "image"){
+                filterCmd.push(`--filter ancestor=${filterValue}`);
+            }
+            else if(filterType === "group"){
+                filterCmd.push(`--filter "label=service.group=${filterValue}"`);
+            }
+
+            // Add state filter if provided
+            if(state) {
+                filterCmd.push(`--filter status=${state}`);
+            }
+
+            // Join all filters
+            const filterString = filterCmd.join(" ");
+
+            const command = `docker ps -a --format '{{json .}}' ${filterString}`;
             const result = execSync(command, { encoding: "utf8" });
+            if(!result){
+                return null;
+            }
 
-            const containers = result
+            return result
                 .trim()
                 .split("\n")
+                .filter(line => line.trim() !== "") // Handle empty lines
                 .map(line => JSON.parse(line));
 
-            return containers;
         } catch (error) {
+            Console.error(error);
             Console.error("Error retrieving container instances:", error.message);
             return [];
         }
@@ -187,26 +249,27 @@ export default function DockerManager(_args = null) {
 
     /**
      * Get container status: "running", "stopped", "not_exists", or "error"
-     * @param {string} containerName - Name of the container
+     * @param {string} identifier - Name of the container
+     * @param {string} identifierType - name or id
      * @returns {string} - Container status
      */
-    function getContainerStatus(containerName) {
+    function getContainerStatus(identifier, identifierType="name") {
         try {
             // Check if the container exists
-            const existsCommand = `docker ps -a -q -f name=^/${containerName}$ | wc -l`;
+            const existsCommand = `docker ps -a -q -f ${identifierType}=^/${identifier}$ | wc -l`;
             const existsResult = execSync(existsCommand, {encoding: "utf8"});
             if (parseInt(existsResult.trim()) === 0) {
                 return "not_exists";
             }
 
             // If it exists, check if it's running
-            const runningCommand = `docker inspect -f '{{.State.Running}}' ${containerName}`;
+            const runningCommand = `docker inspect -f '{{.State.Running}}' ${identifier}`;
             const runningResult = execSync(runningCommand, {encoding: "utf8"});
 
             return runningResult.trim().toLowerCase() === "true" ? "running" : "stopped";
 
         } catch (error) {
-            Console.error(`Error checking container status for ${containerName}:`, error);
+            Console.error(`Error checking container status for ${identifier}:`, error);
             return "error";
         }
     }
@@ -467,16 +530,35 @@ export default function DockerManager(_args = null) {
             .map(([key, value]) => `-e ${key}=${value}`)
             .join(" ");
 
+        const instanceNumber = new ObjectId().toString(); //mongoDb ID.
+
+        /**
+         * It will either leave the host port as unique port if the maxInstances is one or less or nullish
+         * otherwise it will create a range based on the maxInstances value:
+         * ex: 8080-8090 when maxInstances is 10.
+         * With the range, docker will assign the next available port in that range
+         * @type {string|*}
+         */
+        let hostPort = manifest.config.external_port;
+        if(typeof manifest.maxInstances === "number" && manifest.maxInstances > 1){
+            hostPort = hostPort+"-"+(manifest.config.external_port+manifest.maxInstances).toString();
+        }
+        let ports = `-p ${hostPort}:${manifest.config.internal_port}`;
+
+        let containerName = manifest.config.container_name+"-"+instanceNumber;
+
         // Run the container
         const runCommand = `docker run -d \
-          --name ${manifest.config.container_name} \
+          --name ${containerName} \\
+          --label service.group=${manifest.name} \
+          --label service.instance=${instanceNumber} \
           --network ${manifest.config.network} \
           --add-host=server.alkimia.localhost:host-gateway \
           --add-host=app.alkimia.localhost:host-gateway \
           --add-host=stressagent.alkimia.localhost:host-gateway \
           --cpus=1 \
           --memory=512m \
-          -p ${manifest.config.env.PUBLIC_PORT}:${manifest.config.env.PORT} \
+          ${ports} \
           ${envVariablesPart} \
           ${volumes} \
           ${manifest.config.container_name}`;
@@ -487,15 +569,7 @@ export default function DockerManager(_args = null) {
             stdio: "inherit"
         });
 
-        //NOTE DISABLED
-        // DockerManager.emitter.emit("container-started", {
-        //     name: manifest.config.container_name,
-        //     env: runningEnv,
-        //     domain: manifest.config.public_domain,
-        //     port: manifest.config.external_port
-        // });
-
-        return "created_new";
+        return containerName;
     }
 
     /**
@@ -557,9 +631,13 @@ export default function DockerManager(_args = null) {
             execSync(`chmod 400 ${keyFilePath}`, { stdio: "inherit" });
         }
 
-        const ports = manifest.config.ports
-            .map( port => `-p ${port}`)
-            .join(" ");
+
+        let hostPort = manifest.config.external_port;
+        if(typeof manifest.maxInstances === "number" && manifest.maxInstances > 1){
+            hostPort = hostPort+"-"+(hostPort+manifest.maxInstances).toString();
+        }
+        let ports = `-p ${hostPort}:${manifest.config.internal_port}`;
+
 
         const env = Object.entries(manifest.config.env)
             .map(([key, value]) => `-e ${key}=${value}`)
@@ -576,6 +654,7 @@ export default function DockerManager(_args = null) {
         // Create a new container with replica set support
         const runCommand = `docker run -d --name ${manifest.config.container_name} \
                          --network ${manifest.config.network} \
+                         --label service.group=${manifest.name} \
                          ${ports}\
                          ${env}\
                          -v ${dataPath}:/data/db \
@@ -686,19 +765,28 @@ export default function DockerManager(_args = null) {
             return "started_existing";
         }
 
+
+        let serviceManifest = manifest.services[manifest.ServiceIds.MQTT_BROKER];
+        let hostPort = serviceManifest.config.external_port;
+        if(typeof serviceManifest.maxInstances === "number" && serviceManifest.maxInstances > 1){
+            hostPort = hostPort+"-"+(hostPort+serviceManifest.maxInstances).toString();
+        }
+        let ports = `-p ${hostPort}:${serviceManifest.config.internal_port}`;
+
+
         // Create a new container - Use absolute paths
         const configPath = path.resolve(root, "services/mqtt/config");
 
-        const runCommand = `docker run -d --name ${_brokerName} \
-                             --network ${networkName} \
-                             -p 1883:1883 \
-                             -p 9001:9001 \
-                             -v ${configPath}:/mosquitto/config \
-                             -v mqtt_data:/mosquitto/data \
-                             -v mqtt_log:/mosquitto/log \
+        const runCommand = `docker run -d --name ${_brokerName} \\
+                             --label service.group=${serviceManifest.name} \\
+                             --network ${networkName} \\
+                             ${ports} \\
+                             -v ${configPath}:/mosquitto/config \\
+                             -v mqtt_data:/mosquitto/data \\
+                             -v mqtt_log:/mosquitto/log \\
                              eclipse-mosquitto:latest`;
 
-        Console.debug("about to exec runCommand for mqtt broker with",runCommand);
+        Console.debug("about to exec runCommand for mqtt broker with:", runCommand);
 
         execSync(runCommand, {
             cwd: root,
@@ -709,8 +797,26 @@ export default function DockerManager(_args = null) {
         return "created_new";
     }
 
+    /**
+     * Extract the external port from a docker container json output
+     * @param {string} portMapping - in the form "0.0.0.0:8084->3000/tcp"
+     */
+    function extractExternalPort(portMapping){
+
+        if(Utilities.isNonemptyString(portMapping) ){
+            // Regular expression to match the port number after the IP and colon, before the arrow
+            const regex = /\d+\.\d+\.\d+\.\d+:(\d+)->/;
+            const match = portMapping.match(regex);
+            if (match && match[1]) {
+                return parseInt(match[1], 10); // Convert to number and return
+            }
+        }
+
+        return null; // Return null if no match found
+    }
+
     // Expose methods on the instance
-    instance.getContainerInstances = getContainerInstances;
+    instance.getContainersByFilter = getContainersByFilter;
     instance.getContainerStatus = getContainerStatus;
     instance.doesImageExist = doesImageExist;
     instance.doesNetworkExist = doesNetworkExist;
@@ -725,6 +831,9 @@ export default function DockerManager(_args = null) {
     instance.checkContainerRunning = checkContainerRunning;
     instance.getContainer = getContainer;
     instance.emitDockerEvent = emitDockerEvent;
+    instance.getAllManifestContainers = getAllManifestContainers;
+    instance.extractExternalPort = extractExternalPort;
+
 
     // Event handling
 

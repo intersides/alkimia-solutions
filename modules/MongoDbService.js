@@ -116,7 +116,24 @@ export default function MongoDbService(_args=null){
             Console.debug(`onEvent Container event[${event.type}]:`, event);
             switch(event.type){
                 case "docker-container":{
-                    _storeEvent(event.type, event);
+                    storeEvent(event.type, event);
+
+                    switch(event.state ){
+                        case "kill":
+                        case "die":
+                        case "destroy":{
+                            services.findOneAndDelete({instance_id: event.data.container_id})
+                                .catch(exc=>{
+                                    Console.error(exc);
+                                });
+                        }break;
+
+                        default:{
+                            Console.debug(`event state:${event.state} not considered`);
+                        }
+                    }
+
+
                 }break;
                 default:{
                     Console.warn("not dealing with event type :", event.type);
@@ -149,7 +166,23 @@ export default function MongoDbService(_args=null){
         }
     }
 
-    async function _getEvent(_eventType, _filter){
+    function deleteContainerById(containerId){
+        // Delete all documents where instance_id is in the provided array
+        Console.debug("DEBUG: about to delete entry with containerId", containerId);
+        services.deleteOne({
+            instance_id: containerId
+        }).then(result=>{
+            Console.debug("deleteContainersById result", result);
+        }).catch(exc=>{
+            Console.error(exc);
+        });
+    }
+
+    function getAllContainers(){
+        return services.find().toArray();
+    }
+
+    async function getEvent(_eventType, _filter){
         if(events){
 
             return await events.findOne({type:_eventType, ..._filter});
@@ -181,7 +214,7 @@ export default function MongoDbService(_args=null){
         }
     }
 
-    function _upsertMonitoringEvent(readingData){
+    function upsertMonitoringEvent(readingData){
         if(monitors){
             monitors.findOneAndUpdate(
                 { name: readingData.name }, // Filter: Match by 'container'
@@ -203,7 +236,7 @@ export default function MongoDbService(_args=null){
     }
 
 
-    function _storeEvent(_eventType, eventData){
+    function storeEvent(_eventType, eventData){
         if(events){
             events.insertOne(
                 { type: _eventType, ...eventData },
@@ -220,10 +253,13 @@ export default function MongoDbService(_args=null){
         }
     }
 
-    instance.getEvent = _getEvent;
-    instance.storeEvent = _storeEvent;
+    instance.getEvent = getEvent;
+    instance.storeEvent = storeEvent;
     instance.upsertServiceState = upsertServiceState;
-    instance.upsertMonitoringEvent = _upsertMonitoringEvent;
+    instance.upsertMonitoringEvent = upsertMonitoringEvent;
+    instance.getAllContainers = getAllContainers;
+    instance.deleteContainerById = deleteContainerById;
+    instance.mongoClient = mongoClient;
 
     instance.onConnected = function(_delegate){
         if(typeof _delegate === "function"){

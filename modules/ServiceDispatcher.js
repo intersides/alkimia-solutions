@@ -31,7 +31,7 @@ export default function ServiceDispatcher(_args=null){
 
         const { maxInstances = 1 } = manifestService; // Optionally define max instances in the manifest
         Console.debug("maxInstances", maxInstances);
-        const currentInstances = dockerManager.getContainerInstances(serviceName);
+        const currentInstances = dockerManager.getContainersByFilter(serviceName);
         Console.debug("currentInstances", currentInstances);
 
         // Implement specific scaling logic here (e.g., CPU/memory usage, request rate, etc.)
@@ -40,19 +40,13 @@ export default function ServiceDispatcher(_args=null){
     }
 
     function getServiceFromRequest(request){
-        Console.debug("service dispatcher should determine what to server from url:", request.url, request.headers);
 
         let serviceInManifest = null;
-        switch(request.url){
-
-            case request.headers.host === "server.alkimia.localhost":
-            case request.url.startsWith("/api/"):{
-                serviceInManifest = manifest.services["alkimia-backend"];
-            }break;
-
-            default:{
-                serviceInManifest = Object.values(manifest.services).find(service=>service.config.public_domain === request.headers.host);
-            }break;
+        if(request.url.startsWith("/api/")){
+            serviceInManifest = manifest.services[manifest.ServiceIds.ALKIMIA_BACKEND];
+        }
+        else{
+            serviceInManifest = Object.values(manifest.services).find(service=>service.config.public_domain === request.headers.host);
         }
 
         if(!serviceInManifest){

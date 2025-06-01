@@ -2,17 +2,16 @@ import DockerManager from "../DockerManager.js";
 import ServiceDispatcher from "../modules/ServiceDispatcher.js";
 import path from "node:path";
 import Console from "@intersides/console";
+import Manifest from "../services-manifest.js";
 
 const root = path.resolve(process.cwd(), "../");
 Console.debug("root:", root);
 
-let dockerManager = DockerManager({
-    root:root,
-    envVars:{},
-    serviceDispatcher:ServiceDispatcher()
+const manifest = Manifest({
+    root:root
 });
 
-let manifestService = {
+let playgroundBackendManifest = {
     name: "playground-backend",
     monitored:true,
     maxInstances:10,
@@ -46,8 +45,15 @@ let manifestService = {
         internal_port:3000
     }
 };
+manifest.services["playground-backend"] = playgroundBackendManifest;
 
-dockerManager.prepareAndRunContainer(manifestService, {
+let dockerManager = DockerManager({
+    root:root,
+    envVars:{},
+    manifest
+});
+
+dockerManager.prepareAndRunContainer(playgroundBackendManifest, {
     runningEnv: "development",
-    forceRestart: false
+    forceRestart: true
 });

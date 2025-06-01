@@ -24,10 +24,10 @@ export default function Manifest(args){
         Networks,
         services:{
             [ServiceIds.ALKIMIA_BACKEND]:{
+                type:"docker-service",
                 name: ServiceIds.ALKIMIA_BACKEND,
                 monitored:true,
                 maxInstances:10,
-                type:"docker-service",
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -37,9 +37,6 @@ export default function Manifest(args){
                     dockerfile:"apps/backend/Dockerfile",
                     public_domain:"server.alkimia.localhost",
                     container_name:ServiceIds.ALKIMIA_BACKEND,
-                    ports:[
-                        "8080:3000"
-                    ],
                     volumes:[
                         "/app/node_modules",
                         `${root}/apps/backend:/app`,
@@ -58,10 +55,10 @@ export default function Manifest(args){
                 }
             },
             [ServiceIds.ALKIMIA_FRONTEND]:{
+                type:"docker-service",
                 name: ServiceIds.ALKIMIA_FRONTEND,
                 monitored:false,
                 maxInstances:1,
-                type:"docker-service",
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -71,9 +68,6 @@ export default function Manifest(args){
                     dockerfile:"apps/frontend/Dockerfile",
                     public_domain:"app.alkimia.localhost",
                     container_name: ServiceIds.ALKIMIA_FRONTEND,
-                    ports:[
-                        "7070:3000"
-                    ],
                     volumes:[
                         "/app/node_modules",
                         `${root}/apps/frontend:/app`,
@@ -93,10 +87,10 @@ export default function Manifest(args){
             },
 
             [ServiceIds.STRESS_AGENT]:{
+                type:"docker-service",
                 name: ServiceIds.STRESS_AGENT,
                 monitored:false,
                 maxInstances:1,
-                type:"docker-service",
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -128,10 +122,9 @@ export default function Manifest(args){
                 }
             },
             [ServiceIds.MQTT_BROKER]:{
-                name: ServiceIds.MQTT_BROKER,
-                instanceId:null,
-                monitored:false,
                 type:"docker-service",
+                name: ServiceIds.MQTT_BROKER,
+                monitored:false,
                 maxInstances:1,
                 protocol: "mqtt",
                 mode: "message-broker", // or "pubsub"
@@ -141,18 +134,15 @@ export default function Manifest(args){
                     container_name:ServiceIds.MQTT_BROKER,
                     public_domain:"mqtt.alkimia.localhost",
                     image:"eclipse-mosquitto:latest",
-                    ports:[
-                        "9001:1883"
-                    ],
-                    external_port:9001,
+                    external_port:1883,
                     internal_port:1883
                 }
             },
             [ServiceIds.MONGO_DB]:{
-                name: ServiceIds.MONGO_DB,
-                monitored:true,
-                maxInstances:1,
                 type:"docker-service",
+                name: ServiceIds.MONGO_DB,
+                monitored:false,
+                maxInstances:1,
                 protocol: "mqtt",
                 mode: "message-broker", // or "pubsub"
                 config:{
@@ -160,10 +150,6 @@ export default function Manifest(args){
                     network: Networks.ALKIMIA_NET,
                     container_name:ServiceIds.MONGO_DB,
                     image:"mongo:latest",
-                    ports:[
-                        "27017:27017",
-                        "28017:28017"
-                    ],
                     env:{
                         MONGO_INITDB_ROOT_USERNAME:"mongoadmin",
                         MONGO_INITDB_ROOT_PASSWORD:"secret"
@@ -183,7 +169,9 @@ export default function Manifest(args){
                         "--replSet rs0",
                         "--keyFile /data/mongodb-keyfile",
                         "--bind_ip_all"
-                    ]
+                    ],
+                    external_port:27017,
+                    internal_port:27017
 
                 }
             },
