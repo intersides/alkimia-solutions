@@ -73,11 +73,11 @@ export default function MongoDbService(_args=null){
     function _registerEvents(){
 
         DockerManager.on("docker-update-event", function(eventData){
-            Console.log(`onEvent Container ${eventData.name} 'docker-update-event':${eventData.state}`, eventData);
+            Console.log(`onEvent 'docker-update-event' from container ${eventData.instance_name} :${eventData.state}`, eventData);
         });
 
         DockerManager.on("event", function(event){
-            Console.debug(`onEvent Container event[${event.type}]:`, event);
+            Console.debug(`onEvent '${event.type}' from container event:`, event);
             switch(event.type){
                 case "docker-container":{
                     storeEvent(event.type, event);
@@ -167,7 +167,8 @@ export default function MongoDbService(_args=null){
                     returnDocument: "after"
                 }               // Insert the document if it doesn't exist
             ).then((result) => {
-                Console.log("Upsert result:", result);
+                // Console.log("Upsert result:", result);
+                Console.info(`stored monitoring data: container:${result["container"]} cpu%:${result["cpuPercent"]}, in panic ${result["panic"]}`);
             }).catch((err) => {
                 Console.error("Failed to perform upsert operation:", err);
             });

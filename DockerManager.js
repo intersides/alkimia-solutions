@@ -102,6 +102,7 @@ export default function DockerManager(_args = null) {
                             ].includes(event.Action)) {
                                 const containerName = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
                                 const containerId = event.Actor?.ID || null;
+                                const serviceGroup = event.Actor?.Attributes?.["service.group"] || null;
 
                                 const eventTime = new Date(event.timeNano / 1e6); // to milliseconds
 
@@ -114,7 +115,8 @@ export default function DockerManager(_args = null) {
                                     data:{
                                         container_name:containerName,
                                         container_id:containerId,
-                                        action: event.Action
+                                        action: event.Action,
+                                        manifest:manifest.services[serviceGroup]
                                     }
                                 });
 
@@ -365,30 +367,9 @@ export default function DockerManager(_args = null) {
                 const status = getContainerStatus(containerName);
                 Console.debug(`${containerName} status:`, status);
 
-                //NOTE DISABLED
-                // DockerManager.emitter.emit(status, {
-                //     name: containerName,
-                //     env: envVars.ENV,
-                //     domain: envVars.DOMAIN
-                // });
-
                 if (status === "running") {
                     Console.log(`Container ${containerName} is running!`);
-
-                    let container = getContainer(containerName);
-                    Console.debug("container", container);
-
-                    let containerInfo = {
-                        state:container.State.Status,
-                        instance_id:container.Id,
-                        instance_name:containerName,
-                        env: envVars.ENV,
-                        timestamp: container.Created,
-                        data:manifest.services[containerName]
-                    };
-
                     resolve(true);
-
                 } else {
                     const error = new Error(`Container ${containerName} start timeout error (status: ${status})`);
                     Console.error(error.message);
@@ -735,14 +716,6 @@ export default function DockerManager(_args = null) {
 
         // Start polling
         pollForMongoDB();
-
-        //NOTE: DISABLED
-        // DockerManager.emitter.emit("container-started", {
-        //     name: manifest.config.container_name,
-        //     env: runningEnv,
-        //     domain: manifest.config.public_domain,
-        //     port: manifest.config.external_port
-        // });
 
         return "created_new";
     }

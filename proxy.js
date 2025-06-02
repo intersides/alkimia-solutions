@@ -15,6 +15,7 @@ import {HttpErrorStatus} from "@workspace/common/enums.js";
 import MqttService from "./modules/MqttService.js";
 import MongoDbService from "./modules/MongoDbService.js";
 import Manifest from "./services-manifest.js";
+import {setIntervalImmediate} from "@workspace/common/utils.js";
 
 dotenv.config();
 
@@ -370,8 +371,7 @@ Promise.all([
 
     Console.info("resolved: service IDS:", resolved);
 
-    setInterval(monitorRunningContainers, 2000);
-    monitorRunningContainers();
+    setIntervalImmediate(monitorRunningContainers, 2000);
 
     MqttService({
         uri: process.env.MQTT_BROKER_URL

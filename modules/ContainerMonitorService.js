@@ -5,6 +5,7 @@ import {utilities as Utilities} from "@alkimia/lib";
 import MongoDbService from "./MongoDbService.js";
 import ServiceDispatcher from "./ServiceDispatcher.js";
 import DockerManager from "../DockerManager.js";
+import {setIntervalImmediate} from "@workspace/common/utils.js";
 
 /**
  * Service for monitoring Docker container performance metrics
@@ -41,23 +42,42 @@ export default function ContainerMonitorService(_args=null) {
 
     function _registerEventListeners(){
 
-        DockerManager.on("container-started", function(containerInfo){
-            Console.info(`onEvent  container-started: ${containerInfo.name}`);
-            if(containerInfo.monitored){
-                Console.info(`about to start cpu monitoring for : ${containerInfo.name}`);
-                monitorContainerCpu(containerInfo.name, 2000, 0, (state)=>{});
-            }
-        });
+        DockerManager.on("event", function(event){
+            Console.debug(`onEvent '${event.type}' from container event:`, event);
+            switch(event.type){
+                case "docker-container":{
 
-        DockerManager.on("container-killed", function(containerInfo){
-            Console.info(`onEvent  container-killed: ${containerInfo.name}`);
-            if(containerInfo.monitored){
-                Console.warn(`about to stop cpu monitoring for : ${containerInfo.name}`);
-                stopMonitoringContainerCpu(containerInfo.name, (monitoringIntervalRef)=>{
-                    Console.debug(`Monitoring stopped for ${monitoringIntervalRef} monitoringIntervalRef:`, monitoringIntervalRef);
-                });
-            }
+                    switch(event.state ){
 
+                        case "start":{
+                            if(event.data.manifest.monitored){
+                                Console.info(`about to start cpu monitoring for : ${event.data.container_name}`);
+                                monitorContainerCpu(event.data.container_name, 2000, 0, (state)=>{});
+                            }
+                        }break;
+
+                        case "kill":
+                        case "die":
+                        case "destroy":{
+                            if(event.data.manifest.monitored){
+                                Console.warn(`about to stop cpu monitoring for : ${event.data.container_name}`);
+                                stopMonitoringContainerCpu(event.data.container_name, (monitoringIntervalRef)=>{
+                                    Console.debug(`Monitoring stopped for ${monitoringIntervalRef} monitoringIntervalRef:`, monitoringIntervalRef);
+                                });
+                            }
+                        }break;
+
+                        default:{
+                            Console.debug(`event type:${event.type} in state:${event.state} not considered`);
+                        }
+                    }
+
+
+                }break;
+                default:{
+                    Console.warn("not dealing with event type :", event.type);
+                }break;
+            }
         });
 
     }
@@ -187,21 +207,31 @@ export default function ContainerMonitorService(_args=null) {
             isRunning: true
         };
 
-        cpuMonitoringIntervals[containerName] = setInterval(async () => {
-            if (!monitorData.isRunning) {
-                stopMonitoringContainerCpu(containerName);
+
+        let container = dockerManager.getContainer(containerName, "name");
+        let serviceGroup = container?.["Config"]["Labels"]["service.group"];
+
+        async function cpuMonitoringProcedure(
+            _containerName,
+            _panicThreshold,
+            _monitorData,
+            _startTime,
+            _serviceGroup,
+            _durationMs ){
+            if (!_monitorData.isRunning) {
+                stopMonitoringContainerCpu(_containerName);
                 return;
             }
 
-            const cpuPercent = await getContainerCpuUsage(containerName);
+            const cpuPercent = await getContainerCpuUsage(_containerName);
             const timestamp = Date.now();
 
             const reading = {
-                container:containerName,
+                container:_containerName,
                 cpuPercent,
                 timestamp,
-                panic:cpuPercent > panicThreshold,
-                elapsedMs: timestamp - startTime
+                panic:cpuPercent > _panicThreshold,
+                elapsedMs: timestamp - _startTime
             };
 
             if(reading.panic){
@@ -218,28 +248,42 @@ export default function ContainerMonitorService(_args=null) {
                 }
 
                 //spawn the same service !!
-                if(serviceDispatcher.checkScalingCondition(containerName)){
-                    Console.debug(containerName, "should scale up" );
+                if(serviceDispatcher.checkScalingCondition(_serviceGroup)){
+                    Console.debug(_containerName, "should scale up" );
                 }
 
             }
 
             mongoDbService.upsertMonitoringEvent(reading);
 
-            monitorData.readings.push(reading);
+            _monitorData.readings.push(reading);
 
             // Check if monitoring duration has elapsed
-            if (durationMs > 0 && timestamp - startTime >= durationMs) {
-                monitorData.isRunning = false;
-                stopMonitoringContainerCpu(containerName);
-                Console.log(`CPU monitoring for ${containerName} completed`);
+            if (_durationMs > 0 && timestamp - _startTime >= _durationMs) {
+                _monitorData.isRunning = false;
+                stopMonitoringContainerCpu(_containerName);
+                Console.log(`CPU monitoring for ${_containerName} completed`);
                 emitter.emit("monitoring-completed", {
-                    containerName,
-                    readings: monitorData.readings
+                    containerName: _containerName,
+                    readings: _monitorData.readings
                 });
             }
+        }
 
-        }, intervalMs);
+        cpuMonitoringIntervals[containerName] = setIntervalImmediate(
+            async () => {
+                await cpuMonitoringProcedure(
+                    containerName,
+                    panicThreshold,
+                    monitorData,
+                    startTime,
+                    serviceGroup,
+                    durationMs
+                );
+            },
+            intervalMs
+        );
+
 
         // Return control object
         return {
