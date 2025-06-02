@@ -5,6 +5,7 @@ import path from "path";
 import {fileURLToPath} from "url";
 import DockerManager from "./DockerManager.js";
 import Console from "@intersides/console";
+import { DateTime } from "luxon";
 import dotenv from "dotenv";
 import { WebSocketServer } from "ws";
 import * as net from "node:net";
@@ -59,25 +60,34 @@ const sslOptions = {
     cert
 };
 
-async function cleanupOrphanedServiceRecords(){
+function monitorRunningContainers(){
     //clear services entries if containers do not exist
-    let allContainers = await mongoDbService.getAllContainers();
-    const containerIds = allContainers
-        .map(container=> container["instance_id"]);
-    //filter non-existing containers
-    containerIds.forEach(id=>{
-        let status = dockerManager.getContainerStatus(id, "id");
-        if(status === "not_exists"){
-            mongoDbService.deleteContainerById(id);
-        }
+
+    mongoDbService.removeAllServices().then(()=>{
+        let allContainers = dockerManager.getContainersByFilter("alkimia-workspace", "namespace");
+        allContainers.forEach(container=>{
+            let info =  {
+                container_id:container["ID"],
+                name:container["Names"],
+                port:dockerManager.extractExternalPort(container["Ports"]),
+                state:container["State"],
+                status:container["Status"],
+                createdAt: dockerManager.convertContainerInfoDateIntoIsoDate(container["CreatedAt"]),
+                updatedAt:new Date()
+            };
+            mongoDbService.upsertService(info);
+        });
     });
+
+
+
 }
 
 
-function proxyRequest(serviceManifes, req, res){
-    Console.log("Routing to:", serviceManifes);
+function proxyRequest(serviceManifest, req, res){
+    Console.log("Routing to:", serviceManifest);
 
-    let containers = dockerManager.getContainersByFilter(serviceManifes.config.container_name, "group");
+    let containers = dockerManager.getContainersByFilter(serviceManifest.config.container_name, "group");
 
     //TODO: improve the algorithm to determine the best service from the group
     let container = null;
@@ -87,7 +97,7 @@ function proxyRequest(serviceManifes, req, res){
         container = containers[0];
     }
     else{
-        Console.error("no containers running under the group ", serviceManifes.config.container_name);
+        Console.error("no containers running under the group ", serviceManifest.config.container_name);
     }
     // Console.debug("container->:", container);
 
@@ -97,7 +107,7 @@ function proxyRequest(serviceManifes, req, res){
     }
 
     const proxyReq = http.request({
-        host: serviceManifes.config.host,
+        host: serviceManifest.config.host,
         port: externalPort,
         path: req.url,
         method: req.method,
@@ -105,7 +115,7 @@ function proxyRequest(serviceManifes, req, res){
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
-        Console.log("forwarding to...", serviceManifes.config.host+":"+externalPort);
+        Console.log("forwarding to...", serviceManifest.config.host+":"+externalPort);
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
 
         // Pipe the response data
@@ -349,9 +359,8 @@ Promise.all([
 
     Console.info("resolved: service IDS:", resolved);
 
-    //TODO: it needs to be adjusted
-    // setInterval(cleanupOrphanedServiceRecords, 5000);
-    // await cleanupOrphanedServiceRecords();
+    setInterval(monitorRunningContainers, 2000);
+    monitorRunningContainers();
 
     MqttService({
         uri: process.env.MQTT_BROKER_URL

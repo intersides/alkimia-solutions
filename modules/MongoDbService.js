@@ -74,43 +74,7 @@ export default function MongoDbService(_args=null){
 
         DockerManager.on("docker-update-event", function(eventData){
             Console.log(`onEvent Container ${eventData.name} 'docker-update-event':${eventData.state}`, eventData);
-            upsertServiceState(eventData);
         });
-
-        // DockerManager.on("container-started", function(containerInfo){
-        //     Console.info(`onEvent Container ${containerInfo.name} 'container-started'`, containerInfo);
-        //     upsertServiceState(containerInfo);
-        // });
-        //
-        // DockerManager.on("running", function(containerInfo){
-        //     Console.info(`onEvent Container ${containerInfo.name} running`);
-        //     upsertServiceState(containerInfo);
-        // });
-        //
-        // DockerManager.on("stopped", function(containerInfo){
-        //     Console.warn(`onEvent Container ${containerInfo.name} stopped`);
-        //     upsertServiceState(containerInfo);
-        // });
-        // DockerManager.on("error", function(containerInfo){
-        //     Console.error(`onEvent Container ${containerInfo.name} error`);
-        //     upsertServiceState(containerInfo);
-        // });
-        // DockerManager.on("container-stopped", function(containerInfo){
-        //     Console.warn(`onEvent Container ${containerInfo.name} 'container-stopped'`);
-        //     upsertServiceState(containerInfo);
-        // });
-        // DockerManager.on("container-died", function(containerInfo){
-        //     Console.warn(`onEvent Container ${containerInfo.name} 'container-died'`);
-        //     upsertServiceState(containerInfo);
-        // });
-        // DockerManager.on("container-destroyed", function(containerInfo){
-        //     Console.error(`onEvent Container ${containerInfo.name} 'container-destroyed'`);
-        //     upsertServiceState(containerInfo);
-        // });
-        //
-        // DockerManager.on("not_exists", function(containerInfo){
-        //     Console.error(`onEvent Container ${containerInfo.name} 'not_exists'`);
-        // });
 
         DockerManager.on("event", function(event){
             Console.debug(`onEvent Container event[${event.type}]:`, event);
@@ -143,30 +107,31 @@ export default function MongoDbService(_args=null){
 
     }
 
-
-    function upsertServiceState(serviceState){
-        Console.debug("upsertServiceState", serviceState);
+    function upsertService(serviceInfo){
         if(services){
             services.findOneAndUpdate(
-                { instance_id: serviceState.instance_id }, // Filter: Match by 'container'
-                { $set: serviceState },                // Update: Set the full 'data' object
+                { container_id: serviceInfo.container_id }, // Filter: Match by 'container'
+                { $set: serviceInfo },                // Update: Set the full 'data' object
                 {
                     upsert: true,
                     returnDocument: "after"
                 }               // Insert the document if it doesn't exist
-            ).then((result) => {
-                Console.log("Upsert result:", result);
-            }).catch((err) => {
+            ).catch((err) => {
                 Console.error("Failed to perform upsert operation:", err);
             });
-
         }
         else{
             Console.warn("collection services is not ready");
         }
     }
 
-    function deleteContainerById(containerId){
+
+    function removeAllServices(){
+        // Delete all documents where instance_id is in the provided array
+        return services.deleteMany({});
+    }
+
+    function removeContainerById(containerId){
         // Delete all documents where instance_id is in the provided array
         Console.debug("DEBUG: about to delete entry with containerId", containerId);
         services.deleteOne({
@@ -184,29 +149,7 @@ export default function MongoDbService(_args=null){
 
     async function getEvent(_eventType, _filter){
         if(events){
-
             return await events.findOne({type:_eventType, ..._filter});
-
-
-            // if ((await events.countDocuments(_filter)) > 0) {
-            //
-            //     const cursor = events.find(_filter);//.sort(sortFields).project(projectFields);
-            //     for await (const doc of cursor) {
-            //         Console.log("doc:", doc);
-            //     }
-            //
-            // } else {
-            //     console.log("No documents found!");
-            // }
-
-            // events.find(
-            //     { type: _eventType, ..._filter }
-            // ).then((result) => {
-            //     Console.log("inserted event:", result);
-            // }).catch((err) => {
-            //     Console.error("Failed to perform insert operation:", err);
-            // });
-
         }
         else{
             Console.warn("collection events is not ready");
@@ -255,10 +198,11 @@ export default function MongoDbService(_args=null){
 
     instance.getEvent = getEvent;
     instance.storeEvent = storeEvent;
-    instance.upsertServiceState = upsertServiceState;
+    instance.upsertService = upsertService;
     instance.upsertMonitoringEvent = upsertMonitoringEvent;
     instance.getAllContainers = getAllContainers;
-    instance.deleteContainerById = deleteContainerById;
+    instance.removeContainerById = removeContainerById;
+    instance.removeAllServices = removeAllServices;
     instance.mongoClient = mongoClient;
 
     instance.onConnected = function(_delegate){

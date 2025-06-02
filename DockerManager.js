@@ -6,6 +6,7 @@ import Console from "@intersides/console";
 import ServiceDispatcher from "./modules/ServiceDispatcher.js";
 import { ObjectId } from "mongodb";
 import fs from "node:fs";
+import {DateTime} from "luxon";
 
 /**
  * Creates a Docker manager instance for container lifecycle management
@@ -208,6 +209,9 @@ export default function DockerManager(_args = null) {
             else if(filterType === "group"){
                 filterCmd.push(`--filter "label=service.group=${filterValue}"`);
             }
+            else if(filterType === "namespace"){
+                filterCmd.push(`--filter "label=service.namespace=${filterValue}"`);
+            }
 
             // Add state filter if provided
             if(state) {
@@ -217,7 +221,7 @@ export default function DockerManager(_args = null) {
             // Join all filters
             const filterString = filterCmd.join(" ");
 
-            const command = `docker ps -a --format '{{json .}}' ${filterString}`;
+            const command = `docker ps -a  --no-trunc --format '{{json .}}' ${filterString}`;
             const result = execSync(command, { encoding: "utf8" });
             if(!result){
                 return null;
@@ -258,6 +262,7 @@ export default function DockerManager(_args = null) {
             // Check if the container exists
             const existsCommand = `docker ps -a -q -f ${identifierType}=^/${identifier}$ | wc -l`;
             const existsResult = execSync(existsCommand, {encoding: "utf8"});
+            Console.debug("existsCommand", existsCommand, existsResult);
             if (parseInt(existsResult.trim()) === 0) {
                 return "not_exists";
             }
@@ -548,19 +553,20 @@ export default function DockerManager(_args = null) {
         let containerName = manifest.config.container_name+"-"+instanceNumber;
 
         // Run the container
-        const runCommand = `docker run -d \
+        const runCommand = `docker run -d \\
           --name ${containerName} \\
-          --label service.group=${manifest.name} \
-          --label service.instance=${instanceNumber} \
-          --network ${manifest.config.network} \
-          --add-host=server.alkimia.localhost:host-gateway \
-          --add-host=app.alkimia.localhost:host-gateway \
-          --add-host=stressagent.alkimia.localhost:host-gateway \
-          --cpus=1 \
-          --memory=512m \
-          ${ports} \
-          ${envVariablesPart} \
-          ${volumes} \
+          --label service.namespace=alkimia-workspace \\
+          --label service.group=${manifest.name} \\
+          --label service.instance=${instanceNumber} \\
+          --network ${manifest.config.network} \\
+          --add-host=server.alkimia.localhost:host-gateway \\
+          --add-host=app.alkimia.localhost:host-gateway \\
+          --add-host=stressagent.alkimia.localhost:host-gateway \\
+          --cpus=1 \\
+          --memory=512m \\
+          ${ports} \\
+          ${envVariablesPart} \\
+          ${volumes} \\
           ${manifest.config.container_name}`;
 
         Console.debug("About to execute command", runCommand);
@@ -652,15 +658,16 @@ export default function DockerManager(_args = null) {
             .join(" ");
 
         // Create a new container with replica set support
-        const runCommand = `docker run -d --name ${manifest.config.container_name} \
-                         --network ${manifest.config.network} \
-                         --label service.group=${manifest.name} \
-                         ${ports}\
-                         ${env}\
-                         -v ${dataPath}:/data/db \
-                         -v ${keyFilePath}:/data/mongodb-keyfile \
-                         ${health_check}\
-                         ${manifest.config.image}\
+        const runCommand = `docker run -d --name ${manifest.config.container_name} \\
+                         --network ${manifest.config.network} \\
+                         --label service.namespace=alkimia-workspace \\
+                         --label service.group=${manifest.name} \\
+                         ${ports}\\
+                         ${env}\\
+                         -v ${dataPath}:/data/db \\
+                         -v ${keyFilePath}:/data/mongodb-keyfile \\
+                         ${health_check}\\
+                         ${manifest.config.image}\\
                          ${additional_args}`;
 
         Console.debug("About to exec runCommand for MongoDB with", runCommand);
@@ -778,6 +785,7 @@ export default function DockerManager(_args = null) {
         const configPath = path.resolve(root, "services/mqtt/config");
 
         const runCommand = `docker run -d --name ${_brokerName} \\
+                             --label service.namespace=alkimia-workspace \\
                              --label service.group=${serviceManifest.name} \\
                              --network ${networkName} \\
                              ${ports} \\
@@ -815,6 +823,18 @@ export default function DockerManager(_args = null) {
         return null; // Return null if no match found
     }
 
+    /**
+     *
+     * @param {string} CreatedAt - date string as returned by docker query json format
+     * @return {Date}
+     */
+    function convertContainerInfoDateIntoIsoDate(CreatedAt){
+        let createdAt = CreatedAt.replace(/ [A-Z]{3,}$/, ""); // removes the 'CEST' part
+        createdAt = createdAt.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+        const dt = DateTime.fromFormat(createdAt, "yyyy-MM-dd HH:mm:ss ZZ", { setZone: true });
+        return dt.toJSDate();
+    }
+
     // Expose methods on the instance
     instance.getContainersByFilter = getContainersByFilter;
     instance.getContainerStatus = getContainerStatus;
@@ -833,6 +853,7 @@ export default function DockerManager(_args = null) {
     instance.emitDockerEvent = emitDockerEvent;
     instance.getAllManifestContainers = getAllManifestContainers;
     instance.extractExternalPort = extractExternalPort;
+    instance.convertContainerInfoDateIntoIsoDate = convertContainerInfoDateIntoIsoDate;
 
 
     // Event handling

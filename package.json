@@ -36,6 +36,7 @@
   "dependencies": {
     "@intersides/console": "^1.0.2",
     "dotenv": "^16.5.0",
+    "luxon": "^3.6.1",
     "mongodb": "^6.16.0",
     "mqtt": "^5.12.0",
     "ws": "^8.18.1"
