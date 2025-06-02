@@ -206,7 +206,7 @@ Server.getInstance({
                         printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN + "." + process.env.DOMAIN, null, process.env.ENV);
 
                         // simulate delay
-                        await new Promise(resolve => setTimeout(resolve, 5000)); // 2 second delay
+                        await new Promise(resolve => setTimeout(resolve, 5000)); // 2 seconds delay
 
                         return HttpResponse({
                             data: {

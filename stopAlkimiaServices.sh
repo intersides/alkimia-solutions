@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2086
 
 # Function to display usage
 usage() {
@@ -20,40 +21,23 @@ elif [ ! -z "$1" ]; then
   usage
 fi
 
-# List of service names
-services="alkimia-backend alkimia-frontend alkimia-stress-agent mqtt-alkimia-broker mongodb-alkimia-storage intersides-workspace-base"
-
+services=$(docker ps -a -q --filter "label=service.namespace=alkimia-workspace")
 
 # Stop containers
-for service in $services; do
-  if docker container inspect "$service" >/dev/null 2>&1; then
-    echo "Stopping container: $service"
-    docker stop "$service"
-  else
-    echo "Container not found: $service"
-  fi
-done
+if [ -n "$services" ]; then
 
-# Remove containers
-if [ "$REMOVE_CONTAINERS" = true ]; then
-  for service in $services; do
-    if docker container inspect "$service" >/dev/null 2>&1; then
-      echo "Removing container: $service"
-      docker rm -f "$service"
-    else
-      echo "Container not found (skip removal): $service"
-    fi
-  done
+  docker stop $services
 fi
 
-# Remove images (assumes container name == image name)
-if [ "$REMOVE_IMAGES" = true ]; then
-  for service in $services; do
-    if docker image inspect "$service" >/dev/null 2>&1; then
-      echo "Removing image: $service"
-      docker rmi -f "$service"
-    else
-      echo "Image not found: $service"
-    fi
-  done
+# Remove containers
+if [ "$REMOVE_CONTAINERS" = true ] && [ -n "$services" ]; then
+  docker rm -f $services
+fi
+
+# Remove images (based on containers' image names)
+if [ "$REMOVE_IMAGES" = true ] && [ -n "$services" ]; then
+  images=$(docker inspect -f '{{.Config.Image}}' $services | sort -u)
+  if [ -n "$images" ]; then
+    docker rmi -f $images
+  fi
 fi
