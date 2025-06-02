@@ -79,8 +79,6 @@ function monitorRunningContainers(){
         });
     });
 
-
-
 }
 
 
@@ -99,7 +97,14 @@ function proxyRequest(serviceManifest, req, res){
     else{
         Console.error("no containers running under the group ", serviceManifest.config.container_name);
     }
-    // Console.debug("container->:", container);
+
+    // req.on("close", async()=>{
+    //     Console.debug("request completed on container:", container["Names"]);
+    // });
+
+    req.on("close", ()=>((_container)=>{
+        Console.debug("request completed on container:", _container["Names"]);
+    })(container));
 
     let externalPort = dockerManager.extractExternalPort(container?.["Ports"]);
     if(!externalPort){
@@ -115,28 +120,34 @@ function proxyRequest(serviceManifest, req, res){
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
-        Console.log("forwarding to...", serviceManifest.config.host+":"+externalPort);
+        Console.log(`forwarding to... ${serviceManifest.config.host}:${externalPort} is completed`);
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
-
         // Pipe the response data
         proxyRes.pipe(res);
-
+        Console.info("response sent");
     });
 
-    // Forward the request body
-    req.pipe(proxyReq);
+    proxyReq.on("finish", ()=>((_container)=>{
+        Console.debug("proxy performed on container:", _container["Names"]);
+    })(container));
 
     // Handle errors
-    proxyReq.on("error", (err) => {
-        Console.error("Proxy request error:", err);
-        if(!res.headersSent){
-            res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
-            res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+    proxyReq.on("error", (err)=>((_err, _container)=>{
+        {
+            Console.error("Proxy request error:", err, "related to container", _container);
+            if(!res.headersSent){
+                res.writeHead(HttpErrorStatus.Http502_Bad_Gateway.status);
+                res.end(HttpErrorStatus.Http502_Bad_Gateway.statusText);
+            }
+            else{
+                res.end();
+            }
         }
-        else{
-            res.end();
-        }
-    });
+    })(err, container));
+
+    // Finally, forward the request body
+    req.pipe(proxyReq);
+
 }
 
 const httpsServer = https.createServer(sslOptions, function(req, res){

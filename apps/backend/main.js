@@ -202,8 +202,11 @@ Server.getInstance({
                 },
                 "/": {
                     isProtected: false,
-                    handler: () => {
+                    handler: async () => {
                         printServerInfo(process.env.PROTOCOL, process.env.SUBDOMAIN + "." + process.env.DOMAIN, null, process.env.ENV);
+
+                        // simulate delay
+                        await new Promise(resolve => setTimeout(resolve, 5000)); // 2 second delay
 
                         return HttpResponse({
                             data: {
