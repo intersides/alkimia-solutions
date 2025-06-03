@@ -96,7 +96,19 @@ Server.getInstance({
                                                         mqttClient.on('message', (topic, message) => {
                                                             console.debug("[FRONTEND] MQTT on message", topic, message.toString());
                                                         });
-
+                                                        
+                                                        console.log("LOG: about to connect to websocket...");
+                                                        const websocketClient = new WebSocket("https://server.alkimia.localhost");
+                                                        websocketClient.onopen = (event) => {
+                                                            console.debug("DEBUG: websocketClient opened!");
+                                                            websocketClient.send(JSON.stringify({msg: "message from app!"}));
+                                                        };
+                                                        websocketClient.onmessage = (msg) => {
+                                                            console.info("WS MSG:", JSON.parse(msg.data));
+                                                        };
+                                                        websocketClient.onerror = (err) => {
+                                                            console.error("ERROR: websocket error", err);
+                                                        };
                                                       
                                                     });
                                                   </script>

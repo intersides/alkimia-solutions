@@ -762,6 +762,7 @@ export default function DockerManager(_args = null) {
                              --label service.group=${serviceManifest.name} \\
                              --network ${networkName} \\
                              ${ports} \\
+                             -p 9001:9001 \\
                              -v ${configPath}:/mosquitto/config \\
                              -v mqtt_data:/mosquitto/data \\
                              -v mqtt_log:/mosquitto/log \\

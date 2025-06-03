@@ -88,11 +88,17 @@ export default function Server(_args){
         });
         const wss = new WebSocketServer({ server: instance.httpServer });
         wss.on("connection", (ws, req) => {
-            Console.log("WebSocket connection established", req);
+            let connectionId = req.headers["sec-websocket-key"];
+            Console.log("WebSocket connection established: connectionId", connectionId);
             ws.on("error", Console.error);
             ws.on("message", function message(data) {
                 Console.log("received: %s", data);
-                ws.send(`hello from ${publicAddress} websocket server`);
+                ws.send(JSON.stringify({
+                    data:{
+                        msg:`hello from ${publicAddress} websocket server`
+                    },
+                    connectionId
+                }));
             });
         });
 

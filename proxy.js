@@ -186,12 +186,14 @@ httpsServer.on("upgrade", (req, socket, head) => {
     Console.log(`Upgrade request for ${req.headers.host}${req.url}`);
     Console.log("REQ URL:", req.url);
     Console.log("REQ HEADERS:", req.headers);
+    Console.log("REQ HOST:", req.url);
 
     const socketManifestService = serviceDispatcher.getServiceFromRequest(req);
 
     if(socketManifestService){
 
-        const upstream = net.connect(socketManifestService.config.external_port, socketManifestService.config.host, () => {
+        //NOTE: only the mqtt broker service has a dedicated websocket port:"websocket_port" . The backend uses the external port:"external_port"
+        const upstream = net.connect(socketManifestService.config.websocket_port || socketManifestService.config.external_port, socketManifestService.config.host, function(){
 
             // Proper HTTP upgrade framing
             const requestLine = `GET ${req.url} HTTP/1.1\r\n`;

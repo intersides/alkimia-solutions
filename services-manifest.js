@@ -134,6 +134,7 @@ export default function Manifest(args){
                     container_name:ServiceIds.MQTT_BROKER,
                     public_domain:"mqtt.alkimia.localhost",
                     image:"eclipse-mosquitto:latest",
+                    websocket_port:9001,
                     external_port:1883,
                     internal_port:1883
                 }

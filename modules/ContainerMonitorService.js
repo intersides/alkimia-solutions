@@ -217,7 +217,7 @@ export default function ContainerMonitorService(_args=null) {
             _monitorData,
             _startTime,
             _serviceGroup,
-            _durationMs ){
+            _durationMs){
             if (!_monitorData.isRunning) {
                 stopMonitoringContainerCpu(_containerName);
                 return;
@@ -289,7 +289,7 @@ export default function ContainerMonitorService(_args=null) {
         return {
             stop: () => {
                 monitorData.isRunning = false;
-                clearInterval(intervalId);
+                clearInterval(cpuMonitoringIntervals[containerName]);
                 Console.log(`CPU monitoring for ${containerName} stopped`);
                 emitter.emit("monitoring-stopped", {
                     containerName,
@@ -312,6 +312,7 @@ export default function ContainerMonitorService(_args=null) {
      * @returns {object} - Monitor Control Object with stop() method
      */
     function monitorContainerMemory(containerName, intervalMs = 1000, durationMs = 0, callback) {
+
         Console.log(`Starting memory monitoring for ${containerName}`);
 
         const startTime = Date.now();
