@@ -151,6 +151,35 @@ function proxyRequest(serviceManifest, req, res){
 
 }
 
+const wss = new WebSocketServer({ noServer: true });
+wss.on("connection", (ws, incomingMessage) => {
+    Console.log("WebSocketServer connection established");
+    let connectionId = incomingMessage.headers["sec-websocket-key"];
+    Console.debug("connectionId", connectionId);
+    ws.send(JSON.stringify({
+        data:{
+            msg:"hello from proxy"
+        },
+        connectionId
+    }));
+
+    ws.on("error", function(error){
+        Console.error(error);
+    });
+
+    ws.on("message", function message(data) {
+        Console.log("received: %s", data);
+        // ws.send(JSON.stringify({
+        //     data:{
+        //         msg:"hello from proxy"
+        //     },
+        //     connectionId
+        // }));
+    });
+
+});
+
+
 const httpsServer = https.createServer(sslOptions, function(req, res){
     // Log the incoming request
     Console.log(`Received request: ${req.method} ${req.url}`);
@@ -159,7 +188,7 @@ const httpsServer = https.createServer(sslOptions, function(req, res){
     //Determine the target server based on the req
     const manifestService = serviceDispatcher.getServiceFromRequest(req);
     if (manifestService) {
-        Console.debug("Found service in manifest:", manifestService);
+        // Console.debug("Found service in manifest:", manifestService);
         // Delegate to ContainerMonitorService
         containerMonitorService.ensureServiceAvailable(manifestService, {
             ENV: process.env.ENV
@@ -188,60 +217,50 @@ httpsServer.on("upgrade", (req, socket, head) => {
     Console.log("REQ HEADERS:", req.headers);
     Console.log("REQ HOST:", req.url);
 
-    const socketManifestService = serviceDispatcher.getServiceFromRequest(req);
+    // Delegate upgrade to the WS server
+    wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req); // This triggers the `connection` handler
+    });
 
-    if(socketManifestService){
-
-        //NOTE: only the mqtt broker service has a dedicated websocket port:"websocket_port" . The backend uses the external port:"external_port"
-        const upstream = net.connect(socketManifestService.config.websocket_port || socketManifestService.config.external_port, socketManifestService.config.host, function(){
-
-            // Proper HTTP upgrade framing
-            const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
-            const headers = Object.entries(req.headers)
-                .map(([key, val]) => `${key}: ${val}`)
-                .join("\r\n") + "\r\n\r\n";
-
-            upstream.write(requestLine + headers);
-            upstream.write(head);
-
-            socket.setNoDelay(true);
-            upstream.setNoDelay(true);
-
-            upstream.pipe(socket);
-            socket.pipe(upstream);
-        });
-
-        upstream.on("error", err => {
-            Console.error("WS Proxy Error:", err);
-            socket.destroy();
-        });
-
-        socket.on("error", err => {
-            Console.error("Client WS Error:", err);
-            upstream.destroy();
-        });
-
-    }
-    else{
-        Console.warn("No valid WS target. Falling back or rejecting.");
-        socket.destroy();
-    }
+    // const socketManifestService = serviceDispatcher.getServiceFromRequest(req);
+    // if(socketManifestService){
+    //
+    //     //NOTE: only the mqtt broker service has a dedicated websocket port:"websocket_port" . The backend uses the external port:"external_port"
+    //     const upstream = net.connect(socketManifestService.config.websocket_port || socketManifestService.config.external_port, socketManifestService.config.host, function(){
+    //
+    //         // Proper HTTP upgrade framing
+    //         const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
+    //         const headers = Object.entries(req.headers)
+    //             .map(([key, val]) => `${key}: ${val}`)
+    //             .join("\r\n") + "\r\n\r\n";
+    //
+    //         upstream.write(requestLine + headers);
+    //         upstream.write(head);
+    //
+    //         socket.setNoDelay(true);
+    //         upstream.setNoDelay(true);
+    //
+    //         upstream.pipe(socket);
+    //         socket.pipe(upstream);
+    //     });
+    //
+    //     upstream.on("error", err => {
+    //         Console.error("WS Proxy Error:", err);
+    //         socket.destroy();
+    //     });
+    //
+    //     socket.on("error", err => {
+    //         Console.error("Client WS Error:", err);
+    //         upstream.destroy();
+    //     });
+    //
+    // }
+    // else{
+    //     Console.warn("No valid WS target. Falling back or rejecting.");
+    //     socket.destroy();
+    // }
 
 });
-
-
-// const wss = new WebSocketServer({ server: httpsServer });
-// wss.on("connection", (ws, req) => {
-//     Console.log("WebSocket connection established", req);
-//
-//     ws.on("error", Console.error);
-//
-//     ws.on("message", function message(data) {
-//         Console.log("received: %s", data);
-//         ws.send("hello from server");
-//     });
-//
-// });
 
 
 

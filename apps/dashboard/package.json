@@ -1,0 +1,26 @@
+{
+  "name": "dashboard-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@alkimia/lib": "^1.0.9",
+    "@workspace/browser": "*",
+    "@workspace/common": "*",
+    "@workspace/node": "*"
+  },
+  "scripts": {
+    "create-app-module": "npx @alkimia/framework --srcDir=src/modules/",
+    "create-app-widget": "npx @alkimia/framework --srcDir=src/widgets/",
+    "create-app-service": "npx @alkimia/framework --srcDir=src/services/",
+    "compile-scss": "npx sass src",
+    "development": "ENV=development pm2 start ecosystem.config.cjs --env development  --no-daemon",
+    "production": "ENV=production pm2-runtime start ecosystem.config.cjs --env production"
+  },
+  "devDependencies": {
+    "@alkimia/framework": "^0.1.0",
+    "esbuild": "^0.25.4",
+    "pm2": "^6.0.5",
+    "sass": "^1.87.0"
+  }
+}

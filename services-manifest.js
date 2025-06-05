@@ -13,6 +13,7 @@ export default function Manifest(args){
     const ServiceIds = {
         ALKIMIA_BACKEND:"alkimia-backend",
         ALKIMIA_FRONTEND:"alkimia-frontend",
+        ALKIMIA_DASHBOARD:"alkimia-dashboard",
         STRESS_AGENT:"alkimia-stress-agent",
         MONGO_DB:"mongodb-alkimia-storage",
         MQTT_BROKER:"mqtt-alkimia-broker",
@@ -85,7 +86,37 @@ export default function Manifest(args){
                     internal_port:3000
                 }
             },
-
+            [ServiceIds.ALKIMIA_DASHBOARD]:{
+                type:"docker-service",
+                name: ServiceIds.ALKIMIA_DASHBOARD,
+                monitored:false,
+                maxInstances:1,
+                protocol: "http",
+                mode: "rest-api",
+                config:{
+                    host: "localhost", //NOTE: important for proxy when running locally
+                    network: Networks.ALKIMIA_NET,
+                    location:"apps/dashboard",
+                    dockerfile:"apps/dashboard/Dockerfile",
+                    public_domain:"dashboard.alkimia.localhost",
+                    container_name: ServiceIds.ALKIMIA_DASHBOARD,
+                    volumes:[
+                        "/app/node_modules",
+                        `${root}/apps/dashboard:/app`,
+                        `${root}/libs:/app/libs`
+                    ],
+                    env:{
+                        ENV:"staging",
+                        PUBLIC_PORT: "6060",
+                        PORT: "3000",
+                        PROTOCOL: "https",
+                        DOMAIN: "alkimia.localhost",
+                        SUBDOMAIN: "dashboard"
+                    },
+                    external_port:6060,
+                    internal_port:3000
+                }
+            },
             [ServiceIds.STRESS_AGENT]:{
                 type:"docker-service",
                 name: ServiceIds.STRESS_AGENT,

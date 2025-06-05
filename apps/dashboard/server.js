@@ -53,13 +53,11 @@ Server.getInstance({
                                             <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
                                             <link rel="stylesheet" href="index.css" >
                                             <link rel="icon" type="image/x-icon" href="favicon.ico">
-                                            <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-                                            <script type="module" src="main.js"></script>
-                                            <title>Frontend App</title>
+                                            <script type="module" src="index.js"></script>
+                                            <title>Alkimia Dashboard</title>
                                             </head>
                                             <body>
-                                                <h2>Frontend App</h2>
-                                                <img alt="no-face" src="noface.png">
+                                                <h2>Dashboard App</h2>
                                                 <img alt="logo" width="150px" src="intersides_logo.svg">
                                                 <div id="app"></div>
                                                 <script type="importmap">
@@ -73,45 +71,8 @@ Server.getInstance({
                                                 <script>
                                                     window.addEventListener('load', () => {
                                                         console.log('Fully loaded including images, CSS, etc.');
-                                                      
-                                                        // const mqttClient = mqtt.connect('wss://mqtt.alkimia.localhost');
-														//
-                                                        // mqttClient.on('connect', () => {
-                                                        //     console.log('[MQTT] Connected to broker');
-                                                        //
-                                                        //     // Subscribe to a test topic
-                                                        //     mqttClient.subscribe('test/ping', (err) => {
-                                                        //         if (err) {
-                                                        //             console.error('[FRONTEND] MQTT Subscribe error:', err.message);
-                                                        //         } else {
-                                                        //             console.log('[FRONTEND] MQTT Subscribed to test/ping');
-                                                        //         }
-                                                        //     });
-                                                        //
-                                                        //     // Publish a test message
-                                                        //     mqttClient.publish('test/ping', 'frontend is alive');
-                                                        //    
-                                                        // });
-                                                        //
-                                                        // mqttClient.on('message', (topic, message) => {
-                                                        //     console.debug("[FRONTEND] MQTT on message", topic, message.toString());
-                                                        // });
-                                                        
-                                                        console.log("LOG: about to connect to websocket...");
-                                                        const websocketClient = new WebSocket("https://server.alkimia.localhost");
-                                                        websocketClient.onopen = (event) => {
-                                                            console.debug("DEBUG: websocketClient opened!");
-                                                            websocketClient.send(JSON.stringify({msg: "message from app!"}));
-                                                        };
-                                                        websocketClient.onmessage = (msg) => {
-                                                            console.info("WS MSG:", JSON.parse(msg.data));
-                                                        };
-                                                        websocketClient.onerror = (err) => {
-                                                            console.error("ERROR: websocket error", err);
-                                                        };
-                                                      
                                                     });
-                                                  </script>
+                                                </script>
                                             </body>
                                     </html>`,
                                 mimeType: MimeType.HTML

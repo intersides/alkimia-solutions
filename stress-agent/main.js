@@ -2,10 +2,10 @@ import path from "node:path";
 import Server from "@workspace/node/services/Server.js";
 import Router from "@workspace/node/services/Router.js";
 import {HttpErrorGeneric, HttpResponse} from "@workspace/node/ServerResponse.js";
-const url = await import("url");
 import Console from "@intersides/console";
 import {MimeType} from "@workspace/common/enums.js";
 import * as fs from "node:fs";
+const url = await import("url");
 
 
 Console.log("process.env:", process.env);
@@ -18,10 +18,13 @@ const PORT = process.env.PORT || 3000;
 const fullDomain = [SUBDOMAIN, DOMAIN].join(".");
 const publicAddress = `${PROTOCOL}://${fullDomain}`;
 
-Console.debug("PORT", PORT);
-
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 const __appRoot = path.resolve(__dirname, "./");
+globalThis.__appRoot = __appRoot;
+
+const staticDir = `${globalThis.__appRoot}/static`;
+const sharedDir = `${globalThis.__appRoot}/libs`;
+const modulesDir = `${globalThis.__appRoot}/node_modules`;
 
 try{
     let cert = fs.readFileSync(process.env.NODE_EXTRA_CA_CERTS, {encoding:"utf-8"});
@@ -77,13 +80,45 @@ Server.getInstance({
     publicAddress,
     port:PORT,
     router: Router.getInstance({
+        staticDir,
+        sharedDir,
+        modulesDir,
         routes:{
             GET:{
                 "/":{
                     handler:function(){
-                        return HttpResponse({
-                            data: { msg: "hello stress-agent" }
-                        });
+                        return HttpResponse(
+                            {
+                                data:`
+                                    <!doctype html>
+                                    <html lang="en">
+                                        <head>
+                                            <meta charset="UTF-8"/>
+                                            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+                                            <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                                            <link rel="stylesheet" href="index.css" >
+                                            <link rel="icon" type="image/x-icon" href="favicon.ico">
+                                            <script type="module" src="index.js"></script>
+                                            <title>Alkimia Stress Agent Dashboard</title>
+                                            </head>
+                                            <body>
+                                                <script type="importmap">
+                                                    {
+                                                        "imports": {
+                                                        "@alkimia/lib": "/node_modules/@alkimia/lib/index.mjs",
+                                                        "@workspace/common": "/shared/libs/common/index.js"
+                                                        }
+                                                    }
+                                                </script>
+                                                <script>
+                                                    window.addEventListener('load', () => {
+                                                        console.log('Fully loaded including images, CSS, etc.');
+                                                    });
+                                                </script>
+                                            </body>
+                                    </html>`,
+                                mimeType: MimeType.HTML
+                            });
                     }
                 },
                 "/ping": {
