@@ -6,6 +6,8 @@ import MongoDbService from "./MongoDbService.js";
 import ServiceDispatcher from "./ServiceDispatcher.js";
 import DockerManager from "../DockerManager.js";
 import {setIntervalImmediate} from "@workspace/common/utils.js";
+import mqtt from "mqtt";
+
 
 /**
  * Service for monitoring Docker container performance metrics
@@ -35,19 +37,54 @@ export default function ContainerMonitorService(_args=null) {
 
     let cpuMonitoringIntervals = {};
 
+    let mqttClient =null;
+
     function _init(){
+        mqttClient = mqtt.connect("mqtt://mqtt.alkimia.localhost:1883", {
+            clientId: "proxy-server",
+            clean: true
+        });
+
         _registerEventListeners();
         return instance;
     }
 
     function _registerEventListeners(){
 
-        DockerManager.on("event", function(event){
+        mqttClient.on("connect", () => {
+            Console.log("[MQTT] Connected");
+        });
+
+        mqttClient.on("message", (topic, payload) => {
+            Console.log(`[MQTT] Topic: ${topic}, Message: ${payload.toString()}`);
+        });
+
+        mqttClient.on("error", err => {
+            Console.error("[MQTT] Error:", err);
+        });
+
+
+        DockerManager.on("event", async function(event){
             Console.debug(`onEvent '${event.type}' from container event:`, event);
+
             switch(event.type){
                 case "docker-container":{
 
                     switch(event.state ){
+
+                        case "exec_start":{
+                            const memoryUsage = await getContainerMemoryUsage(event.data.container_name);
+                            const cpuUsage = await getContainerCpuUsage(event.data.container_name);
+
+                            // let container = dockerManager.getContainer(event.data.container_name, "name");
+                            mqttClient.publish("service/events", JSON.stringify({
+                                id:event.data.container_id,
+                                type:event.data.type,
+                                name:event.data.container_name,
+                                memory:memoryUsage,
+                                cpu:cpuUsage
+                            }));
+                        }break;
 
                         case "start":{
                             if(event.data.manifest.monitored){

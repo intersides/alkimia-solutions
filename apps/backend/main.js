@@ -100,6 +100,18 @@ Server.getInstance({
                 }
             },
             POST: {
+                "/api/getServices":{
+                    isProtected: true,
+                    handler: async (req) => {
+
+                        return HttpResponse({
+                            data: {
+                                services: []
+                            },
+                            mimeType: MimeType.JSON
+                        });
+                    }
+                },
                 "/api/setCounter": {
                     isProtected: false,
                     handler: async (req) => {
@@ -132,7 +144,7 @@ Server.getInstance({
                     })
                 },
                 "/api/stress/incremental": {
-                    isProtected: false,
+                    isProtected: true,
                     handler: (req) => {
 
                         Console.debug("DEBUG: req.url", req.url);

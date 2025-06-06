@@ -64,14 +64,10 @@ Server.getInstance({
                                                     {
                                                         "imports": {
                                                         "@alkimia/lib": "/node_modules/@alkimia/lib/index.mjs",
-                                                        "@workspace/common": "/shared/libs/common/index.js"
+                                                        "@workspace/common": "/shared/libs/common/index.js",
+                                                        "mqtt": "/node_modules/mqtt/dist/mqtt.esm.js"
                                                         }
                                                     }
-                                                </script>
-                                                <script>
-                                                    window.addEventListener('load', () => {
-                                                        console.log('Fully loaded including images, CSS, etc.');
-                                                    });
                                                 </script>
                                             </body>
                                     </html>`,

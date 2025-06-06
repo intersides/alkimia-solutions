@@ -128,7 +128,9 @@ export default function Router(args){
 
                     let mimeType = MimeType.TEXT;
 
-                    const fileType = fileName.split(".")[1];
+                    const buffer = fileName.split(".");
+                    const fileType = buffer[buffer.length-1];
+
                     switch(fileType){
 
                         case "css":{
@@ -197,7 +199,7 @@ export default function Router(args){
                             mimeType = MimeType.TEXT;
                         }
                     }
-                    Console.debug("MimeType of the requested file:", mimeType);
+                    Console.debug(`MimeType of the requested file type ${fileType}:`, mimeType);
 
                     const response = HttpResponse({
                         data: data,

@@ -1,5 +1,5 @@
 import { utilities, ElementState } from "@alkimia/lib";
-import { sayHello } from "@workspace/common";
+import ServiceEntry from "../components/ServiceEntry.js";
 
 //language=CSS
 let style  = `
@@ -25,43 +25,30 @@ let style  = `
     .App {
       display: inline-block;
       border: 2px solid blue;
-      padding: 2rem;
+      padding: .2rem;
+      section{
+          border: 2px solid green;
+          margin: .5rem;           
+          padding: .5rem;           
+      }
     }
 `;
 
 //language=HTML
 const htmlTemplate = `
-    <section>
-        <h2></h2>
-        <label>
-            <span>my input</span>
-            <input type="number" id="counter_input" min="0" max="100" step="1" />
-        </label>
-    </section>
-    
-    <section>
-        <p>counter <span id="counter_value">abc</span></p>
-        
-        <div>
-            <label>
-                <span>counter list</span>
-            </label>
-            <ul>
-                <li class="list_item_template">0</li>
-            </ul>
-        </div>
-        
-        <label>
-            <span>list</span>
-        </label>
-    
-    </section>`;
+    <section class="services">
+		<h3>Services</h3>
+        <div id="service_list"></div>
+	</section>
+`;
 
 export default function App(args){
 
-    let { websocketService } = utilities.transfer(args, {
-        websocketService:null
+    let { websocketService, mqttService } = utilities.transfer(args, {
+        websocketService:null,
+        mqttService:null
     });
+
 
     const instance = Object.create(App.prototype);
 
@@ -76,58 +63,57 @@ export default function App(args){
     let [list, setList] = [null, (_color) => {}];
 
     //children elements
-    let $input = null,
-        $h2 = null,
-        $counter = null,
-        $list = null,
-        $listItemTemplate = null;
-
-    let _vParent = null;
-
+    let $Parent = null,
+        $input = null,
+        $serviceListRoot = null;
     /**
-  *
-  * @return {App}
-  * @private
-  */
+     *
+     * @return {App}
+     * @private
+     **/
     const _initialize = ()=>{
         _initView();
         _registerEvents();
         return instance;
     };
 
+    function _fetchServices(){
+        return new Promise((resolve, reject) => {
+            fetch("proxy/getServices", {
+                method:"POST",
+                body: JSON.stringify({
+                    status:"running"
+                })
+            })
+                .then(res=>{
+                    return res.json();
+                })
+                .then((data)=>{
+                    resolve(data);
+                })
+                .catch(err=>{
+                    console.error(err);
+                    reject(err);
+                });
+        });
+
+    }
+
     function _initView(){
+        $serviceListRoot = instance.element.view.querySelector("#service_list");
+    }
 
-        $h2 = instance.element.view.querySelector("h2");
-        $input = instance.element.view.querySelector("input");
-        $counter = instance.element.view.querySelector("#counter_value");
-        $list = instance.element.view.querySelector("ul");
-        $listItemTemplate = instance.element.view.querySelector(".list_item_template");
 
-        $h2.textContent = sayHello("My ES6 App!");
+    let services = {};
 
-        [counter, setCounter] = new ElementState({
-            element: $counter,
-            attribute: ElementState.BindableAttribute.innertext.name,
-            initialValue: 0
-        });
+    function _updateServiceEntry(service){
 
-        [list, setList] = new ElementState({
-            element: $list,
-            attribute: ElementState.BindableAttribute.children,
-            initialValue: [],
-            transformer: (list) => {
-                if (list) {
-                    return list.map((_listItem) => {
-                        const listItemTemplate = $listItemTemplate.cloneNode(true);
-                        listItemTemplate.innerText = _listItem;
-                        return listItemTemplate;
-                    });
-                }
-                else {
-                    return [];
-                }
-            }
-        });
+        if(!services[service.id]){
+            let serviceEntry = ServiceEntry(service);
+            services[service.id] = serviceEntry;
+            serviceEntry.appendTo($serviceListRoot);
+        }
+        services[service.id].setData(service);
 
     }
 
@@ -136,60 +122,26 @@ export default function App(args){
     };
 
     /**
-   * @param {HTMLElement} _parent
-   */
+     * @param {HTMLElement} _parent
+     */
     instance.appendTo = (_parent)=>{
         _parent.appendChild(instance.element);
-        _vParent = _parent;
+        $Parent = _parent;
         _onAppended();
     };
 
     function _registerEvents(){
-        _onAppended = () => {
-            $input.value = counter.value; //from initialValue
-        };
+        _onAppended = () => {};
 
-        if($input){
-            $input.addEventListener("change", (evt) => {
-
-                fetch("api/setCounter", {
-                    method:"POST",
-                    body: JSON.stringify({ counter })
-                })
-                    .then(res=>{
-                        return res.json();
-                    })
-                    .then((data)=>{
-                        console.log(data);
-                    })
-                    .catch(err=>{
-                        console.error(err);
-                    });
-
-                setCounter(evt.target.value);
-                setList([...list.value, evt.target.value]);
+        if(mqttService){
+            mqttService.onTopicMessage(function(topic, message){
+                console.debug("DEBUG: onTopicMessage", topic, message);
+                _updateServiceEntry(message);
             });
         }
+
 
     }
 
     return _initialize();
 }
-
-/**
- *
- * @type {App}
- * @private
- */
-let _instance = null;
-
-App.getSingleton = function(_args=null) {
-    if(!_instance){
-        _instance = App(_args);
-    }
-    return _instance;
-};
-
-App.getInstance = function(_args) {
-    return App(_args);
-};

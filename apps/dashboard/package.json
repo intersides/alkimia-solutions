@@ -7,7 +7,8 @@
     "@alkimia/lib": "^1.0.9",
     "@workspace/browser": "*",
     "@workspace/common": "*",
-    "@workspace/node": "*"
+    "@workspace/node": "*",
+    "mqtt": "^5.13.1"
   },
   "scripts": {
     "create-app-module": "npx @alkimia/framework --srcDir=src/modules/",

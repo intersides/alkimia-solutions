@@ -241,7 +241,7 @@ export async function distillRequest(request, withBody = true){
                 type = MimeType.HTML;
             }
             else{
-                Console.warn(`mime type not extracted from accept ${accept}`);
+                Console.warn(`@request url:"${request.url}" mime type not extracted from accept header ${accept}`);
             }
 
         }

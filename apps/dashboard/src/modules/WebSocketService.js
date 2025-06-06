@@ -22,21 +22,27 @@ export default function WebSocketService(args){
     function _registerEventHandlers(){
 
         ws.onopen = () => {
-            sendMessage({
-                msg: "message from dashboard app!"
-            });
+            console.debug("DEBUG: websocket is now open");
+        // sendMessage({
+        //     msg: "message from dashboard app!"
+        // });
         };
 
-        ws.onmessage = (msg) => {
-            console.info("WS MSG:", JSON.parse(msg.data));
-            sendMessage({
-                msg:"ABC - Dash"
-            });
-        };
-
+        // ws.onmessage = (msg) => {
+        //     console.info("WS MSG:", JSON.parse(msg.data));
+        //     sendMessage({
+        //         msg:"ABC - Dash"
+        //     });
+        // };
+        //
         ws.onerror = (err) => {
             console.error("ERROR: websocket error", err);
         };
+
+        ws.onclose = ()=>{
+            console.log("closed ?");
+        };
+
     }
 
     function sendMessage(data){

@@ -31,7 +31,7 @@ RUN echo "mode: $ENV"
 EXPOSE 3000
 
 # Health check via HTTP
-HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail http://localhost:3000/ping || exit 1
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD curl --fail -H "User-Agent: Docker-Health-Check" -H "X-Source: Docker" -H "Content-Type: application/json" -H "Accept: application/json" http://localhost:3000/ping || exit 1
 
 # Run the frontend
 CMD ["sh", "-c", "npm run development"]

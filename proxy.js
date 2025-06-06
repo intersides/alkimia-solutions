@@ -11,11 +11,13 @@ import { WebSocketServer } from "ws";
 import * as net from "node:net";
 import ServiceDispatcher from "./modules/ServiceDispatcher.js";
 import ContainerMonitorService from "./modules/ContainerMonitorService.js";
-import {HttpErrorStatus} from "@workspace/common/enums.js";
+import {HttpErrorStatus, MimeType} from "@workspace/common/enums.js";
 import MqttService from "./modules/MqttService.js";
 import MongoDbService from "./modules/MongoDbService.js";
 import Manifest from "./services-manifest.js";
 import {setIntervalImmediate} from "@workspace/common/utils.js";
+import {HttpResponse} from "@workspace/node/ServerResponse.js";
+import ProxyRouter from "./ProxyRouter.js";
 
 dotenv.config();
 
@@ -180,34 +182,53 @@ wss.on("connection", (ws, incomingMessage) => {
 });
 
 
+
 const httpsServer = https.createServer(sslOptions, function(req, res){
     // Log the incoming request
     Console.log(`Received request: ${req.method} ${req.url}`);
     Console.log(`Host header: ${req.headers.host}`);
 
-    //Determine the target server based on the req
-    const manifestService = serviceDispatcher.getServiceFromRequest(req);
-    if (manifestService) {
-        // Console.debug("Found service in manifest:", manifestService);
-        // Delegate to ContainerMonitorService
-        containerMonitorService.ensureServiceAvailable(manifestService, {
-            ENV: process.env.ENV
-        }).then(()=>{
-            proxyRequest(manifestService, req, res);
-        }).catch(error=>{
-            Console.error("Error handling service request:", error.message);
+    if(req.url.startsWith("/proxy/")){
+        let proxyHttpRouteResponse = ProxyRouter({
+            dockerManager
+        }).handle(req.url);
+        if(proxyHttpRouteResponse){
+            proxyHttpRouteResponse.send(res);
+        }
+        else{
             if (!res.headersSent) {
-                res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
-                res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
+                res.writeHead(HttpErrorStatus.Http404_Not_Found.status);
+                res.end(HttpErrorStatus.Http404_Not_Found.statusText);
             }
-        });
-
-    } else {
-        if (!res.headersSent) {
-            res.writeHead(HttpErrorStatus.Http404_Not_Found.status);
-            res.end(HttpErrorStatus.Http404_Not_Found.statusText);
         }
     }
+    else{
+        //Determine the target server based on the req
+        const manifestService = serviceDispatcher.getServiceFromRequest(req);
+        if (manifestService) {
+            // Console.debug("Found service in manifest:", manifestService);
+            // Delegate to ContainerMonitorService
+            containerMonitorService.ensureServiceAvailable(manifestService, {
+                ENV: process.env.ENV
+            }).then(()=>{
+                proxyRequest(manifestService, req, res);
+            }).catch(error=>{
+                Console.error("Error handling service request:", error.message);
+                if (!res.headersSent) {
+                    res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
+                    res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
+                }
+            });
+
+        } else {
+            if (!res.headersSent) {
+                res.writeHead(HttpErrorStatus.Http404_Not_Found.status);
+                res.end(HttpErrorStatus.Http404_Not_Found.statusText);
+            }
+        }
+    }
+
+
 
 });
 
@@ -218,51 +239,49 @@ httpsServer.on("upgrade", (req, socket, head) => {
     Console.log("REQ HOST:", req.url);
 
     // Delegate upgrade to the WS server
-    wss.handleUpgrade(req, socket, head, (ws) => {
-        wss.emit("connection", ws, req); // This triggers the `connection` handler
-    });
+    // wss.handleUpgrade(req, socket, head, (ws) => {
+    //     wss.emit("connection", ws, req); // This triggers the `connection` handler
+    // });
 
-    // const socketManifestService = serviceDispatcher.getServiceFromRequest(req);
-    // if(socketManifestService){
-    //
-    //     //NOTE: only the mqtt broker service has a dedicated websocket port:"websocket_port" . The backend uses the external port:"external_port"
-    //     const upstream = net.connect(socketManifestService.config.websocket_port || socketManifestService.config.external_port, socketManifestService.config.host, function(){
-    //
-    //         // Proper HTTP upgrade framing
-    //         const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
-    //         const headers = Object.entries(req.headers)
-    //             .map(([key, val]) => `${key}: ${val}`)
-    //             .join("\r\n") + "\r\n\r\n";
-    //
-    //         upstream.write(requestLine + headers);
-    //         upstream.write(head);
-    //
-    //         socket.setNoDelay(true);
-    //         upstream.setNoDelay(true);
-    //
-    //         upstream.pipe(socket);
-    //         socket.pipe(upstream);
-    //     });
-    //
-    //     upstream.on("error", err => {
-    //         Console.error("WS Proxy Error:", err);
-    //         socket.destroy();
-    //     });
-    //
-    //     socket.on("error", err => {
-    //         Console.error("Client WS Error:", err);
-    //         upstream.destroy();
-    //     });
-    //
-    // }
-    // else{
-    //     Console.warn("No valid WS target. Falling back or rejecting.");
-    //     socket.destroy();
-    // }
+    const socketManifestService = serviceDispatcher.getServiceFromRequest(req);
+    if(socketManifestService){
+
+        //NOTE: only the mqtt broker service has a dedicated websocket port:"websocket_port" . The backend uses the external port:"external_port"
+        const upstream = net.connect(socketManifestService.config.websocket_port || socketManifestService.config.external_port, socketManifestService.config.host, function(){
+
+            // Proper HTTP upgrade framing
+            const requestLine = `GET ${req.url} HTTP/1.1\r\n`;
+            const headers = Object.entries(req.headers)
+                .map(([key, val]) => `${key}: ${val}`)
+                .join("\r\n") + "\r\n\r\n";
+
+            upstream.write(requestLine + headers);
+            upstream.write(head);
+
+            socket.setNoDelay(true);
+            upstream.setNoDelay(true);
+
+            upstream.pipe(socket);
+            socket.pipe(upstream);
+        });
+
+        upstream.on("error", err => {
+            Console.error("WS Proxy Error:", err);
+            socket.destroy();
+        });
+
+        socket.on("error", err => {
+            Console.error("Client WS Error:", err);
+            upstream.destroy();
+        });
+
+    }
+    else{
+        Console.warn("No valid WS target. Falling back or rejecting.");
+        socket.destroy();
+    }
 
 });
-
-
 
 //spin up additional services and brokers such as MQTT Mosquito.
 Promise.all([
@@ -392,7 +411,7 @@ Promise.all([
 
     Console.info("resolved: service IDS:", resolved);
 
-    setIntervalImmediate(monitorRunningContainers, 2000);
+    setIntervalImmediate(monitorRunningContainers, 5000);
 
     MqttService({
         uri: process.env.MQTT_BROKER_URL

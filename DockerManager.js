@@ -72,7 +72,7 @@ export default function DockerManager(_args = null) {
 
         const eventStream = exec(eventCommand);
 
-        eventStream.stdout.on("data", (data) => {
+        eventStream.stdout.on("data", function(data){
             try {
                 if( Utilities.isNonemptyString(data.trim())){
                     const lines = data.trim().split("\n");
@@ -81,7 +81,6 @@ export default function DockerManager(_args = null) {
                         let event = null;
                         try{
                             event = JSON.parse(line);
-                            // Console.debug("Container event:", event);
                         }
                         catch(e){
                             Console.error(e);
@@ -98,8 +97,19 @@ export default function DockerManager(_args = null) {
                                 "stop",
                                 "die",
                                 "kill",
-                                "oom"
-                            ].includes(event.Action)) {
+                                "oom", //out of memory
+                                "exec_start"
+                            ].some(actionType => event["Action"].startsWith(actionType))) {
+
+                                const rawAction = event["Action"];
+                                const actionType = rawAction.split(":")[0];
+
+                                if(actionType === "exec_start" && !rawAction.includes("Docker-Health-Check")){
+                                    Console.warn("Skipping exec_start not related to Docker-Health-Check", rawAction);
+                                    return;
+                                }
+
+
                                 const containerName = event.Actor?.Attributes?.name || event.Actor?.ID || "unknown";
                                 const containerId = event.Actor?.ID || null;
                                 const serviceGroup = event.Actor?.Attributes?.["service.group"] || null;
@@ -111,11 +121,11 @@ export default function DockerManager(_args = null) {
                                 DockerManager.emitter.emit("event", {
                                     type:"docker-container",
                                     timestamp: eventTime,
-                                    state: event.Action,
+                                    state: actionType,
                                     data:{
                                         container_name:containerName,
                                         container_id:containerId,
-                                        action: event.Action,
+                                        action: actionType,
                                         manifest:manifest.services[serviceGroup]
                                     }
                                 });
@@ -123,13 +133,16 @@ export default function DockerManager(_args = null) {
                                 emitDockerEvent(containerName);
 
                             }
+                            else{
+                                Console.log(`Not trapped docker event.Action:${event["Action"]}`);
+                            }
                         }
 
 
                     }
                 }
                 else{
-                    Console.warn("container event has no data");
+                    Console.warn("container event  has no data", arguments);
                 }
             } catch (e) {
                 Console.warn("[DockerService] Failed to parse docker event:", e);
