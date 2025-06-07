@@ -16,6 +16,9 @@ export default function ContainerMonitorService(_args=null) {
     const instance = Object.create(ContainerMonitorService.prototype);
     const emitter = new EventEmitter();
 
+    const panicThreshold = 95;
+    const stressThreshold = 80;
+
     const {
         /**
          * @type {MongoDbService}
@@ -76,12 +79,21 @@ export default function ContainerMonitorService(_args=null) {
                             const memoryUsage = await getContainerMemoryUsage(event.data.container_name);
                             const cpuUsage = await getContainerCpuUsage(event.data.container_name);
 
+                            let status = "healthy";
+                            if(cpuUsage > stressThreshold && cpuUsage < panicThreshold){
+                                status = "stressed";
+                            }
+                            else if(cpuUsage > panicThreshold){
+                                status = "panic";
+                            }
+
                             // let container = dockerManager.getContainer(event.data.container_name, "name");
                             mqttClient.publish("service/events", JSON.stringify({
                                 id:event.data.container_id,
                                 type:event.data.type,
                                 name:event.data.container_name,
                                 memory:memoryUsage,
+                                status,
                                 cpu:cpuUsage
                             }));
                         }break;
@@ -231,9 +243,10 @@ export default function ContainerMonitorService(_args=null) {
      * @param {number} intervalMs - Monitoring interval in milliseconds
      * @param {number} durationMs - Total monitoring duration in milliseconds (0 for indefinite)
      * @param {function} callback - Callback function(reading)
+     * @param {number} _panicThreshold
      * @returns {object} - Monitor Control Object with stop() method
      */
-    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback, panicThreshold=80) {
+    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback, _panicThreshold=80) {
 
         const startTime = Date.now();
         const monitorData = {
@@ -311,7 +324,7 @@ export default function ContainerMonitorService(_args=null) {
             async () => {
                 await cpuMonitoringProcedure(
                     containerName,
-                    panicThreshold,
+                    (_panicThreshold || panicThreshold),
                     monitorData,
                     startTime,
                     serviceGroup,

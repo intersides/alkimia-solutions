@@ -7,21 +7,7 @@ let style  = `
       --g_font-family: Helvetica, Arial, sans-serif;
       --g_line-height: 1.5;
     }
-    
-    * {
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-synthesis: none;
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      font-family: var(--g_font-family), sans-serif;
-      line-height: var(--g_line-height);
-      color: #aa17b5;
-    }
-    
+
     .App {
       display: inline-block;
       border: 2px solid blue;
@@ -31,6 +17,12 @@ let style  = `
           margin: .5rem;           
           padding: .5rem;           
       }
+    }
+    
+    .App #service_list{
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
     }
 `;
 

@@ -32,10 +32,20 @@ export default function DockerManager(_args = null) {
         manifest:null
     });
 
+    const RESTART_LISTENER = 5000;
+
     function _init() {
         listenToContainerEvents();
         return instance;
     }
+
+    DockerManager.on("docker-event_stream-exit", function(eventData){
+        Console.warn("onEvent 'docker-event_stream-exit'", eventData);
+        Console.info(`restarting container events listener in ${RESTART_LISTENER} ms`);
+        setTimeout(()=>{
+            listenToContainerEvents();
+        }, RESTART_LISTENER);
+    });
 
     function emitDockerEvent(serviceId){
 
@@ -155,6 +165,11 @@ export default function DockerManager(_args = null) {
 
         eventStream.on("exit", (code) => {
             Console.error(`[DockerService] docker events process exited with code ${code}`);
+            // listenToContainerEvents();
+            DockerManager.emitter.emit("docker-event_stream-exit", {
+                errorCode:code,
+                eventAt:new Date()
+            });
         });
     }
 

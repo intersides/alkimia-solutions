@@ -14,5 +14,4 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-family: var(--g_font-family), sans-serif;
   line-height: var(--g_line-height);
-  color: #aa17b5;
 }
