@@ -16,8 +16,10 @@ export default function ContainerMonitorService(_args=null) {
     const instance = Object.create(ContainerMonitorService.prototype);
     const emitter = new EventEmitter();
 
-    const panicThreshold = 95;
-    const stressThreshold = 80;
+    const kPanicThreshold = 95;
+    const kStressThreshold = 80;
+
+    let serviceMonitoring = {};
 
     const {
         /**
@@ -38,7 +40,7 @@ export default function ContainerMonitorService(_args=null) {
         serviceDispatcher:null
     });
 
-    let cpuMonitoringIntervals = {};
+    // let cpuMonitoringIntervals = {};
 
     let mqttClient =null;
 
@@ -50,6 +52,14 @@ export default function ContainerMonitorService(_args=null) {
 
         _registerEventListeners();
         return instance;
+    }
+
+    function checkScalingCondition(manifest){
+        const currentInstances = dockerManager.getContainersByFilter(manifest.name);
+        Console.debug(`${manifest.name}: currentInstances amount:${currentInstances.length} out of`, manifest.scaling?.horizontal?.maxInstances);
+
+        //all containers should be on a panic state for a certain amount of time ?
+
     }
 
     function _registerEventListeners(){
@@ -66,7 +76,6 @@ export default function ContainerMonitorService(_args=null) {
             Console.error("[MQTT] Error:", err);
         });
 
-
         DockerManager.on("event", async function(event){
             Console.debug(`onEvent '${event.type}' from container event:`, event);
 
@@ -79,13 +88,33 @@ export default function ContainerMonitorService(_args=null) {
                             const memoryUsage = await getContainerMemoryUsage(event.data.container_name);
                             const cpuUsage = await getContainerCpuUsage(event.data.container_name);
 
+                            let panicThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.cpuPercent?.panic || kPanicThreshold;
+                            let stressThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.cpuPercent?.stress || kStressThreshold;
+
                             let status = "healthy";
                             if(cpuUsage > stressThreshold && cpuUsage < panicThreshold){
                                 status = "stressed";
                             }
-                            else if(cpuUsage > panicThreshold){
+                            else if(cpuUsage > kPanicThreshold){
                                 status = "panic";
                             }
+
+                            Console.debug("++++event.data:", event.data.container_id);
+                            if(!Object.hasOwn(serviceMonitoring, event.data.container_id)){
+                                serviceMonitoring[event.data.container_id] = {
+
+                                };
+                            }
+
+                            if(event.data.manifest?.scaling){
+                                checkScalingCondition(event.data.manifest);
+                            }
+
+
+                            Console.debug("serviceGroup", event.data.manifest);
+                            // if(serviceDispatcher.checkScalingCondition(_serviceGroup)){
+                            //     Console.debug(_containerName, "should scale up" );
+                            // }
 
                             // let container = dockerManager.getContainer(event.data.container_name, "name");
                             mqttClient.publish("service/events", JSON.stringify({
@@ -96,12 +125,13 @@ export default function ContainerMonitorService(_args=null) {
                                 status,
                                 cpu:cpuUsage
                             }));
+
                         }break;
 
                         case "start":{
                             if(event.data.manifest.monitored){
                                 Console.info(`about to start cpu monitoring for : ${event.data.container_name}`);
-                                monitorContainerCpu(event.data.container_name, 2000, 0, (state)=>{});
+                                // monitorContainerCpu(event.data.container_name, 2000, 0, (state)=>{});
                             }
                         }break;
 
@@ -110,9 +140,9 @@ export default function ContainerMonitorService(_args=null) {
                         case "destroy":{
                             if(event.data.manifest.monitored){
                                 Console.warn(`about to stop cpu monitoring for : ${event.data.container_name}`);
-                                stopMonitoringContainerCpu(event.data.container_name, (monitoringIntervalRef)=>{
-                                    Console.debug(`Monitoring stopped for ${monitoringIntervalRef} monitoringIntervalRef:`, monitoringIntervalRef);
-                                });
+                                // stopMonitoringContainerCpu(event.data.container_name, (monitoringIntervalRef)=>{
+                                //     Console.debug(`Monitoring stopped for ${monitoringIntervalRef} monitoringIntervalRef:`, monitoringIntervalRef);
+                                // });
                             }
                         }break;
 
@@ -146,6 +176,7 @@ export default function ContainerMonitorService(_args=null) {
 
             // Parse the CPU percentage (format is like "5.26%")
             const cpuPercent = parseFloat(result.replace("%", ""));
+            Console.debug("!!getContainerCpuUsage.cpuPercent", cpuPercent);
             return cpuPercent;
         } catch (error) {
             Console.error(`Error getting CPU usage for ${containerName}:`, error);
@@ -230,12 +261,12 @@ export default function ContainerMonitorService(_args=null) {
     }
 
 
-    function stopMonitoringContainerCpu(containerName, _callback){
-        clearInterval(cpuMonitoringIntervals[containerName]);
-        if(_callback){
-            _callback(cpuMonitoringIntervals[containerName]);
-        }
-    }
+    // function stopMonitoringContainerCpu(containerName, _callback){
+    //     clearInterval(cpuMonitoringIntervals[containerName]);
+    //     if(_callback){
+    //         _callback(cpuMonitoringIntervals[containerName]);
+    //     }
+    // }
 
     /**
      * Monitor container CPU usage at regular intervals
@@ -246,112 +277,112 @@ export default function ContainerMonitorService(_args=null) {
      * @param {number} _panicThreshold
      * @returns {object} - Monitor Control Object with stop() method
      */
-    function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback, _panicThreshold=80) {
-
-        const startTime = Date.now();
-        const monitorData = {
-            containerName,
-            readings: [],
-            startTime,
-            intervalMs,
-            isRunning: true
-        };
-
-
-        let container = dockerManager.getContainer(containerName, "name");
-        let serviceGroup = container?.["Config"]["Labels"]["service.group"];
-
-        async function cpuMonitoringProcedure(
-            _containerName,
-            _panicThreshold,
-            _monitorData,
-            _startTime,
-            _serviceGroup,
-            _durationMs){
-            if (!_monitorData.isRunning) {
-                stopMonitoringContainerCpu(_containerName);
-                return;
-            }
-
-            const cpuPercent = await getContainerCpuUsage(_containerName);
-            const timestamp = Date.now();
-
-            const reading = {
-                container:_containerName,
-                cpuPercent,
-                timestamp,
-                panic:cpuPercent > _panicThreshold,
-                elapsedMs: timestamp - _startTime
-            };
-
-            if(reading.panic){
-
-                Console.warn("a service state is into panic!");
-
-                //check for previous panic instances
-                let untreatedEvent = await mongoDbService.getEvent("service_panic", { container:reading.container, status:"UNTREATED" });
-                if(!untreatedEvent){
-                    mongoDbService.storeEvent("service_panic", {...reading, status:"UNTREATED"});
-                }
-                else{
-                    Console.info("untreatedEvent", untreatedEvent);
-                }
-
-                //spawn the same service !!
-                if(serviceDispatcher.checkScalingCondition(_serviceGroup)){
-                    Console.debug(_containerName, "should scale up" );
-                }
-
-            }
-
-            mongoDbService.upsertMonitoringEvent(reading);
-
-            _monitorData.readings.push(reading);
-
-            // Check if monitoring duration has elapsed
-            if (_durationMs > 0 && timestamp - _startTime >= _durationMs) {
-                _monitorData.isRunning = false;
-                stopMonitoringContainerCpu(_containerName);
-                Console.log(`CPU monitoring for ${_containerName} completed`);
-                emitter.emit("monitoring-completed", {
-                    containerName: _containerName,
-                    readings: _monitorData.readings
-                });
-            }
-        }
-
-        cpuMonitoringIntervals[containerName] = setIntervalImmediate(
-            async () => {
-                await cpuMonitoringProcedure(
-                    containerName,
-                    (_panicThreshold || panicThreshold),
-                    monitorData,
-                    startTime,
-                    serviceGroup,
-                    durationMs
-                );
-            },
-            intervalMs
-        );
-
-
-        // Return control object
-        return {
-            stop: () => {
-                monitorData.isRunning = false;
-                clearInterval(cpuMonitoringIntervals[containerName]);
-                Console.log(`CPU monitoring for ${containerName} stopped`);
-                emitter.emit("monitoring-stopped", {
-                    containerName,
-                    readings: monitorData.readings
-                });
-                return monitorData.readings;
-            },
-            getData: () => {
-                return monitorData.readings;
-            }
-        };
-    }
+    // function monitorContainerCpu(containerName, intervalMs = 1000, durationMs = 0, callback, _panicThreshold=80) {
+    //
+    //     const startTime = Date.now();
+    //     const monitorData = {
+    //         containerName,
+    //         readings: [],
+    //         startTime,
+    //         intervalMs,
+    //         isRunning: true
+    //     };
+    //
+    //
+    //     let container = dockerManager.getContainer(containerName, "name");
+    //     let serviceGroup = container?.["Config"]["Labels"]["service.group"];
+    //
+    //     // async function cpuMonitoringProcedure(
+    //     //     _containerName,
+    //     //     _panicThreshold,
+    //     //     _monitorData,
+    //     //     _startTime,
+    //     //     _serviceGroup,
+    //     //     _durationMs){
+    //     //     if (!_monitorData.isRunning) {
+    //     //         stopMonitoringContainerCpu(_containerName);
+    //     //         return;
+    //     //     }
+    //     //
+    //     //     const cpuPercent = await getContainerCpuUsage(_containerName);
+    //     //     const timestamp = Date.now();
+    //     //
+    //     //     const reading = {
+    //     //         container:_containerName,
+    //     //         cpuPercent,
+    //     //         timestamp,
+    //     //         panic:cpuPercent > _panicThreshold,
+    //     //         elapsedMs: timestamp - _startTime
+    //     //     };
+    //     //
+    //     //     if(reading.panic){
+    //     //
+    //     //         Console.warn("a service state is into panic!");
+    //     //
+    //     //         //check for previous panic instances
+    //     //         let untreatedEvent = await mongoDbService.getEvent("service_panic", { container:reading.container, status:"UNTREATED" });
+    //     //         if(!untreatedEvent){
+    //     //             mongoDbService.storeEvent("service_panic", {...reading, status:"UNTREATED"});
+    //     //         }
+    //     //         else{
+    //     //             Console.info("untreatedEvent", untreatedEvent);
+    //     //         }
+    //     //
+    //     //         //spawn the same service !!
+    //     //         if(serviceDispatcher.checkScalingCondition(_serviceGroup)){
+    //     //             Console.debug(_containerName, "should scale up" );
+    //     //         }
+    //     //
+    //     //     }
+    //     //
+    //     //     mongoDbService.upsertMonitoringEvent(reading);
+    //     //
+    //     //     _monitorData.readings.push(reading);
+    //     //
+    //     //     // Check if monitoring duration has elapsed
+    //     //     if (_durationMs > 0 && timestamp - _startTime >= _durationMs) {
+    //     //         _monitorData.isRunning = false;
+    //     //         stopMonitoringContainerCpu(_containerName);
+    //     //         Console.log(`CPU monitoring for ${_containerName} completed`);
+    //     //         emitter.emit("monitoring-completed", {
+    //     //             containerName: _containerName,
+    //     //             readings: _monitorData.readings
+    //     //         });
+    //     //     }
+    //     // }
+    //
+    //     // cpuMonitoringIntervals[containerName] = setIntervalImmediate(
+    //     //     async () => {
+    //     //         await cpuMonitoringProcedure(
+    //     //             containerName,
+    //     //             (_panicThreshold || kPanicThreshold),
+    //     //             monitorData,
+    //     //             startTime,
+    //     //             serviceGroup,
+    //     //             durationMs
+    //     //         );
+    //     //     },
+    //     //     intervalMs
+    //     // );
+    //
+    //
+    //     // Return control object
+    //     return {
+    //         stop: () => {
+    //             monitorData.isRunning = false;
+    //             clearInterval(cpuMonitoringIntervals[containerName]);
+    //             Console.log(`CPU monitoring for ${containerName} stopped`);
+    //             emitter.emit("monitoring-stopped", {
+    //                 containerName,
+    //                 readings: monitorData.readings
+    //             });
+    //             return monitorData.readings;
+    //         },
+    //         getData: () => {
+    //             return monitorData.readings;
+    //         }
+    //     };
+    // }
 
     /**
      * Monitor container memory usage at regular intervals
@@ -429,64 +460,64 @@ export default function ContainerMonitorService(_args=null) {
      * @param {number} intervalMs - Interval between readings in milliseconds
      * @returns {Promise<Object>} - Monitoring results with CPU and memory data
      */
-    function monitorContainerPerformance(containerName, durationMs = 60000, intervalMs = 1000) {
-        return new Promise((resolve) => {
-            const results = {
-                cpu: [],
-                memory: []
-            };
-            
-            const cpuMonitor = monitorContainerCpu(
-                containerName,
-                intervalMs,
-                durationMs,
-                (reading) => {
-                    results.cpu.push(reading);
-                    Console.log(`${containerName} CPU: ${reading.cpuPercent.toFixed(2)}%`);
-                }
-            );
-            
-            const memMonitor = monitorContainerMemory(
-                containerName,
-                intervalMs,
-                durationMs,
-                (reading) => {
-                    results.memory.push(reading);
-                    if (reading.memoryUsage) {
-                        Console.log(`${containerName} Memory: ${reading.memoryUsage.used} / ${reading.memoryUsage.limit} (${reading.memoryUsage.percentage.toFixed(2)}%)`);
-                    }
-                }
-            );
-            
-            // Resolve after duration
-            setTimeout(() => {
-                cpuMonitor.stop();
-                memMonitor.stop();
-                
-                // Calculate averages
-                const avgCpu = results.cpu.reduce((sum, r) => sum + r.cpuPercent, 0) / results.cpu.length;
-                
-                const avgMemPercent = results.memory
-                    .filter(r => r.memoryUsage)
-                    .reduce((sum, r) => sum + r.memoryUsage.percentage, 0) / 
-                    results.memory.filter(r => r.memoryUsage).length;
-                
-                Console.log(`Average CPU usage: ${avgCpu.toFixed(2)}%`);
-                Console.log(`Average Memory usage: ${avgMemPercent.toFixed(2)}%`);
-                
-                resolve({
-                    containerName,
-                    duration: durationMs,
-                    interval: intervalMs,
-                    readings: results,
-                    summary: {
-                        avgCpuPercent: avgCpu,
-                        avgMemoryPercent: avgMemPercent
-                    }
-                });
-            }, durationMs);
-        });
-    }
+    // function monitorContainerPerformance(containerName, durationMs = 60000, intervalMs = 1000) {
+    //     return new Promise((resolve) => {
+    //         const results = {
+    //             cpu: [],
+    //             memory: []
+    //         };
+    //
+    //         const cpuMonitor = monitorContainerCpu(
+    //             containerName,
+    //             intervalMs,
+    //             durationMs,
+    //             (reading) => {
+    //                 results.cpu.push(reading);
+    //                 Console.log(`${containerName} CPU: ${reading.cpuPercent.toFixed(2)}%`);
+    //             }
+    //         );
+    //
+    //         const memMonitor = monitorContainerMemory(
+    //             containerName,
+    //             intervalMs,
+    //             durationMs,
+    //             (reading) => {
+    //                 results.memory.push(reading);
+    //                 if (reading.memoryUsage) {
+    //                     Console.log(`${containerName} Memory: ${reading.memoryUsage.used} / ${reading.memoryUsage.limit} (${reading.memoryUsage.percentage.toFixed(2)}%)`);
+    //                 }
+    //             }
+    //         );
+    //
+    //         // Resolve after duration
+    //         setTimeout(() => {
+    //             cpuMonitor.stop();
+    //             memMonitor.stop();
+    //
+    //             // Calculate averages
+    //             const avgCpu = results.cpu.reduce((sum, r) => sum + r.cpuPercent, 0) / results.cpu.length;
+    //
+    //             const avgMemPercent = results.memory
+    //                 .filter(r => r.memoryUsage)
+    //                 .reduce((sum, r) => sum + r.memoryUsage.percentage, 0) /
+    //                 results.memory.filter(r => r.memoryUsage).length;
+    //
+    //             Console.log(`Average CPU usage: ${avgCpu.toFixed(2)}%`);
+    //             Console.log(`Average Memory usage: ${avgMemPercent.toFixed(2)}%`);
+    //
+    //             resolve({
+    //                 containerName,
+    //                 duration: durationMs,
+    //                 interval: intervalMs,
+    //                 readings: results,
+    //                 summary: {
+    //                     avgCpuPercent: avgCpu,
+    //                     avgMemoryPercent: avgMemPercent
+    //                 }
+    //             });
+    //         }, durationMs);
+    //     });
+    // }
 
     /**
      * Run a quick performance check on a container
@@ -561,9 +592,9 @@ export default function ContainerMonitorService(_args=null) {
     instance.getContainerCpuUsage = getContainerCpuUsage;
     instance.getContainerMemoryUsage = getContainerMemoryUsage;
     instance.checkContainerPerformance = checkContainerPerformance;
-    instance.monitorContainerCpu = monitorContainerCpu;
+    // instance.monitorContainerCpu = monitorContainerCpu;
     instance.monitorContainerMemory = monitorContainerMemory;
-    instance.monitorContainerPerformance = monitorContainerPerformance;
+    // instance.monitorContainerPerformance = monitorContainerPerformance;
 
     // Event handling
     instance.on = (event, listener) => emitter.on(event, listener);

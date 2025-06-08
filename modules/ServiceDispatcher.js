@@ -1,6 +1,5 @@
 import {utilities as Utilities} from "@alkimia/lib";
 import Console from "@intersides/console";
-import {HttpErrorStatus} from "@workspace/common/enums.js";
 
 /**
  *

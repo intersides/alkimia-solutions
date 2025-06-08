@@ -547,15 +547,16 @@ export default function DockerManager(_args = null) {
         const instanceNumber = new ObjectId().toString(); //mongoDb ID.
 
         /**
-         * It will either leave the host port as unique port if the maxInstances is one or less or nullish
+         * It will either leave the host port as a unique port if the maxInstances is one or less or nullish
          * otherwise it will create a range based on the maxInstances value:
          * ex: 8080-8090 when maxInstances is 10.
          * With the range, docker will assign the next available port in that range
          * @type {string|*}
          */
         let hostPort = manifest.config.external_port;
-        if(typeof manifest.maxInstances === "number" && manifest.maxInstances > 1){
-            hostPort = hostPort+"-"+(manifest.config.external_port+manifest.maxInstances).toString();
+        let horizontalMaxInstances = manifest.scaling?.horizontal?.thresholds?.maxInstances;
+        if(typeof horizontalMaxInstances === "number"){
+            hostPort = hostPort+"-"+(manifest.config.external_port+horizontalMaxInstances).toString();
         }
         let ports = `-p ${hostPort}:${manifest.config.internal_port}`;
 
@@ -648,8 +649,9 @@ export default function DockerManager(_args = null) {
 
 
         let hostPort = manifest.config.external_port;
-        if(typeof manifest.maxInstances === "number" && manifest.maxInstances > 1){
-            hostPort = hostPort+"-"+(hostPort+manifest.maxInstances).toString();
+        let maxHorizontalInstances = manifest.scaling?.horizontal?.maxInstances;
+        if(typeof maxHorizontalInstances === "number" && maxHorizontalInstances > 1){
+            hostPort = hostPort+"-"+(maxHorizontalInstances).toString();
         }
         let ports = `-p ${hostPort}:${manifest.config.internal_port}`;
 
@@ -776,8 +778,9 @@ export default function DockerManager(_args = null) {
 
         let serviceManifest = manifest.services[manifest.ServiceIds.MQTT_BROKER];
         let hostPort = serviceManifest.config.external_port;
-        if(typeof serviceManifest.maxInstances === "number" && serviceManifest.maxInstances > 1){
-            hostPort = hostPort+"-"+(hostPort+serviceManifest.maxInstances).toString();
+        let maxHorizontalInstances = serviceManifest.scaling?.horizontal?.maxInstances;
+        if(typeof maxHorizontalInstances === "number" && maxHorizontalInstances > 1){
+            hostPort = hostPort+"-"+(maxHorizontalInstances).toString();
         }
         let ports = `-p ${hostPort}:${serviceManifest.config.internal_port}`;
 

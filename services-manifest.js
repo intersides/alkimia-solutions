@@ -29,6 +29,19 @@ export default function Manifest(args){
                 name: ServiceIds.ALKIMIA_BACKEND,
                 monitored:true,
                 maxInstances:10,
+                scaling:{
+                    horizontal:{
+                        maxInstances: 10,
+                        thresholds:{
+                            cpuPercent:{
+                                units:"percentage",
+                                panic:95,
+                                stress:80
+                            }
+                        }
+                    },
+                    vertical:null
+                },
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -60,6 +73,7 @@ export default function Manifest(args){
                 name: ServiceIds.ALKIMIA_FRONTEND,
                 monitored:false,
                 maxInstances:1,
+                scaling:null,
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -91,6 +105,7 @@ export default function Manifest(args){
                 name: ServiceIds.ALKIMIA_DASHBOARD,
                 monitored:false,
                 maxInstances:1,
+                scaling:null,
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -122,6 +137,7 @@ export default function Manifest(args){
                 name: ServiceIds.STRESS_AGENT,
                 monitored:false,
                 maxInstances:1,
+                scaling:null,
                 protocol: "http",
                 mode: "rest-api",
                 config:{
@@ -157,6 +173,7 @@ export default function Manifest(args){
                 name: ServiceIds.MQTT_BROKER,
                 monitored:false,
                 maxInstances:1,
+                scaling:null,
                 protocol: "mqtt",
                 mode: "message-broker", // or "pubsub"
                 config:{
@@ -175,6 +192,7 @@ export default function Manifest(args){
                 name: ServiceIds.MONGO_DB,
                 monitored:false,
                 maxInstances:1,
+                scaling:null,
                 protocol: "mqtt",
                 mode: "message-broker", // or "pubsub"
                 config:{
