@@ -143,7 +143,7 @@ Server.getInstance({
                         mimeType:MimeType.JSON
                     })
                 },
-                "/api/stress/incremental": {
+                "/stress/incremental": {
                     isProtected: true,
                     handler: (req) => {
 

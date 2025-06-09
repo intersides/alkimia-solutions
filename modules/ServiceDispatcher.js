@@ -20,24 +20,6 @@ export default function ServiceDispatcher(_args=null){
         return instance;
     }
 
-    /**
-     * Example logic to evaluate if scaling is required for a given service
-     */
-    function checkScalingCondition(serviceGroup) {
-
-        let manifestService = manifest.services[serviceGroup];
-
-        const { maxInstances = 1 } = manifestService; // Optionally define max instances in the manifest
-        const currentInstances = dockerManager.getContainersByFilter(serviceGroup);
-
-        Console.debug("maxInstances", maxInstances);
-        Console.debug("currentInstances amount:", currentInstances,length);
-
-        // Implement specific scaling logic here (e.g., CPU/memory usage, request rate, etc.)
-
-        return currentInstances.length < maxInstances; // No scaling needed
-    }
-
     function getServiceFromRequest(request){
 
         let serviceInManifest = null;
@@ -58,7 +40,6 @@ export default function ServiceDispatcher(_args=null){
     }
 
     instance.getServiceFromRequest = getServiceFromRequest;
-    instance.checkScalingCondition = checkScalingCondition;
 
 
     return _init();

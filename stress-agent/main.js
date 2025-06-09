@@ -63,7 +63,7 @@ async function runStressIncrementalTestOnBackend() {
 
         try {
             // Call the stress endpoint with high intensity for 30 seconds
-            const response = await fetch("https://server.alkimia.localhost/stress/incremental?steps=10&maxIntensity=100&stepDuration=10000");
+            const response = await fetch("https://server.alkimia.localhost/stress/incremental?steps=10&maxIntensity=100&stepDuration=80000");
             const result = await response.json();
             console.log("Stress Incremental started:", result);
             resolve(result);

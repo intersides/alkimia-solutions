@@ -7,6 +7,7 @@ import ServiceDispatcher from "./ServiceDispatcher.js";
 import DockerManager from "../DockerManager.js";
 import {setIntervalImmediate} from "@workspace/common/utils.js";
 import mqtt from "mqtt";
+import fs from "node:fs";
 
 
 /**
@@ -58,7 +59,54 @@ export default function ContainerMonitorService(_args=null) {
         const currentInstances = dockerManager.getContainersByFilter(manifest.name);
         Console.debug(`${manifest.name}: currentInstances amount:${currentInstances.length} out of`, manifest.scaling?.horizontal?.maxInstances);
 
-        //all containers should be on a panic state for a certain amount of time ?
+        let containersSiblings = currentInstances.filter(instance=> instance["Image"] === manifest.name);
+
+        // Console.debug(`${manifest.name}: containersSiblings`, containersSiblings);
+
+        for(const sibling of containersSiblings){
+            if(serviceMonitoring[sibling["Names"]]){
+                //grab the latest 60s entries, if
+                if(serviceMonitoring[sibling["Names"]].length > 3){
+                    Console.warn("scale decision: have enough entries to grab");
+                    let lastMinuteEntries = serviceMonitoring[sibling["Names"]].slice(-3);
+                    let itemsInPanic = lastMinuteEntries.filter(entry=>entry.status === "panic");
+                    if(itemsInPanic.length >= 3){
+                        Console.error("scale decision: it is time to scale up !");
+
+                        let containerName = dockerManager.prepareAndRunContainer(manifest, {
+                            runningEnv: "development",
+                            forceRestart: false
+                        });
+
+                        // Wait for container readiness
+                        dockerManager.waitForContainerReady(containerName).then(()=>{
+                            dockerManager.waitUntilContainerIsHealthy(containerName).then(isHealthy=>{
+                                if (!isHealthy) {
+                                    throw new Error(`Container ${containerName} failed health checks`);
+                                }
+                                else{
+                                    Console.info(`container ${containerName} is healthy`);
+                                    //once the container is healthy it should be added to a register of running containers and tagged by an instance id
+                                }
+
+                            });
+                        });
+
+                    }
+                    else{
+                        Console.warn(`scale decision: it is NOT time to scale up [${itemsInPanic.length}] ! [${itemsInPanic}]`);
+                    }
+                }
+                else{
+                    Console.warn("scale decision: still not enough", serviceMonitoring[sibling["Names"]].length);
+                }
+            }
+        }
+
+
+        //all containers should be on a panic state for a certain amount of time?
+
+
 
     }
 
@@ -77,7 +125,7 @@ export default function ContainerMonitorService(_args=null) {
         });
 
         DockerManager.on("event", async function(event){
-            Console.debug(`onEvent '${event.type}' from container event:`, event);
+            Console.debug(`onEvent '${event.type}' from container event:` /*, event*/);
 
             switch(event.type){
                 case "docker-container":{
@@ -99,22 +147,32 @@ export default function ContainerMonitorService(_args=null) {
                                 status = "panic";
                             }
 
-                            Console.debug("++++event.data:", event.data.container_id);
-                            if(!Object.hasOwn(serviceMonitoring, event.data.container_id)){
-                                serviceMonitoring[event.data.container_id] = {
-
-                                };
+                            if(!Object.hasOwn(serviceMonitoring, event.data.container_name)){
+                                serviceMonitoring[event.data.container_name] = [];
                             }
+
+                            serviceMonitoring[event.data.container_name].push({
+                                status,
+                                cpuUsage,
+                                time:new Date()
+                            });
+
+                            //NOTE: **************** remove after concept is approved ****************
+                            fs.writeFile("event-matrix.json", JSON.stringify(serviceMonitoring, null, 4), {encoding:"utf-8"},  function(err){
+                                if(err){
+                                    Console.error(err);
+                                }
+                                fs.readFile("event-matrix.json", "utf8", (err, data) => {
+                                    if (err){
+                                        return Console.error(err);
+                                    }
+                                });
+                            });
+                            //NOTE: **************** - ****************
 
                             if(event.data.manifest?.scaling){
                                 checkScalingCondition(event.data.manifest);
                             }
-
-
-                            Console.debug("serviceGroup", event.data.manifest);
-                            // if(serviceDispatcher.checkScalingCondition(_serviceGroup)){
-                            //     Console.debug(_containerName, "should scale up" );
-                            // }
 
                             // let container = dockerManager.getContainer(event.data.container_name, "name");
                             mqttClient.publish("service/events", JSON.stringify({

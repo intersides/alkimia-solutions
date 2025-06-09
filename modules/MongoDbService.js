@@ -53,7 +53,7 @@ export default function MongoDbService(_args=null){
 
                 const eventsChangeStream = events.watch();
                 eventsChangeStream.on("change", (change)=>{
-                    Console.warn("on change event triggered by the EVENTS collection", change);
+                    Console.log("on change event triggered by the EVENTS collection", change.fullDocument.data?.container_name);
                 });
 
 
@@ -73,11 +73,11 @@ export default function MongoDbService(_args=null){
     function _registerEvents(){
 
         DockerManager.on("docker-update-event", function(eventData){
-            Console.log(`onEvent 'docker-update-event' from container ${eventData.instance_name} :${eventData.state}`, eventData);
+            Console.log(`onEvent 'docker-update-event' from container ${eventData.instance_name} :${eventData.state}` /*, eventData*/);
         });
 
         DockerManager.on("event", function(event){
-            Console.debug(`onEvent '${event.type}' from container event:`, event);
+            // Console.debug(`onEvent '${event.type}' from container event:`, event);
             switch(event.type){
                 case "docker-container":{
                     storeEvent(event.type, event);

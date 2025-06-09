@@ -126,7 +126,7 @@ export default function DockerManager(_args = null) {
 
                                 const eventTime = new Date(event.timeNano / 1e6); // to milliseconds
 
-                                Console.log(`[DockerService] Container ${containerName} ${event.Action}` );
+                                Console.log(`[DockerManager] Container ${containerName} ${event.Action}` );
 
                                 DockerManager.emitter.emit("event", {
                                     type:"docker-container",
@@ -144,7 +144,7 @@ export default function DockerManager(_args = null) {
 
                             }
                             else{
-                                Console.log(`Not trapped docker event.Action:${event["Action"]}`);
+                                // Console.log(`Not trapped docker event.Action:${event["Action"]}`);
                             }
                         }
 
@@ -155,16 +155,16 @@ export default function DockerManager(_args = null) {
                     Console.warn("container event  has no data", arguments);
                 }
             } catch (e) {
-                Console.warn("[DockerService] Failed to parse docker event:", e);
+                Console.warn("[DockerManager] Failed to parse docker event:", e);
             }
         });
 
         eventStream.stderr.on("data", (err) => {
-            Console.error("[DockerService] Error from docker events:", err);
+            Console.error("[DockerManager] Error from docker events:", err);
         });
 
         eventStream.on("exit", (code) => {
-            Console.error(`[DockerService] docker events process exited with code ${code}`);
+            Console.error(`[DockerManager] docker events process exited with code ${code}`);
             // listenToContainerEvents();
             DockerManager.emitter.emit("docker-event_stream-exit", {
                 errorCode:code,
@@ -554,10 +554,12 @@ export default function DockerManager(_args = null) {
          * @type {string|*}
          */
         let hostPort = manifest.config.external_port;
-        let horizontalMaxInstances = manifest.scaling?.horizontal?.thresholds?.maxInstances;
+        let horizontalMaxInstances = manifest.scaling?.horizontal?.maxInstances;
+
         if(typeof horizontalMaxInstances === "number"){
             hostPort = hostPort+"-"+(manifest.config.external_port+horizontalMaxInstances).toString();
         }
+
         let ports = `-p ${hostPort}:${manifest.config.internal_port}`;
 
         let containerName = manifest.config.container_name+"-"+instanceNumber;

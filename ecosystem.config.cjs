@@ -15,6 +15,7 @@ module.exports = {
             ".idea/workspace.xml",
             ".gitignore",
             "services",
+            "event-matrix.json",
             "*.md"
         ],
         watch_options: {
