@@ -88,31 +88,26 @@ function monitorRunningContainers(){
 function proxyRequest(serviceManifest, req, res){
     Console.log("Routing to:", serviceManifest);
 
-    let containers = dockerManager.getContainersByFilter(serviceManifest.config.container_name, "group");
-
-    //TODO: improve the algorithm to determine the best service from the group
-    let container = null;
-    if(containers?.length > 0){
-        //TODO: this is not enough... it must determine the best candidate container
-        //NOTE at the moment it is taking the first only
-        container = containers[0];
-    }
-    else{
-        Console.error("no containers running under the group ", serviceManifest.config.container_name);
+    //NOTE: here is where the best candidate is determined.
+    let container = containerMonitorService.bestCandidateContainer(serviceManifest);
+    if(!container){
+        Console.error("container not found !!");
+        res.writeHead(HttpErrorStatus.Http404_Not_Found.status);
+        res.end(HttpErrorStatus.Http404_Not_Found.statusText);
+        return;
     }
 
-    // req.on("close", async()=>{
-    //     Console.debug("request completed on container:", container["Names"]);
-    // });
+    let externalPort = dockerManager.extractExternalPort(container?.["Ports"]);
+    if(!externalPort){
+        Console.error("failed to retrieve port from container");
+        res.writeHead(HttpErrorStatus.Http500_Internal_Server_Error.status);
+        res.end(HttpErrorStatus.Http500_Internal_Server_Error.statusText);
+        return;
+    }
 
     req.on("close", ()=>((_container)=>{
         Console.debug("request completed on container:", _container["Names"]);
     })(container));
-
-    let externalPort = dockerManager.extractExternalPort(container?.["Ports"]);
-    if(!externalPort){
-        throw Error("failed to retrieve port");
-    }
 
     const proxyReq = http.request({
         host: serviceManifest.config.host,

@@ -19,8 +19,7 @@ export default function ContainerMonitorService(_args=null) {
 
     const kPanicThreshold = 95;
     const kStressThreshold = 80;
-
-    let serviceMonitoring = {};
+    const kCooldownMs = 30_000;// (30 seconds)
 
     const {
         /**
@@ -42,6 +41,7 @@ export default function ContainerMonitorService(_args=null) {
     });
 
     // let cpuMonitoringIntervals = {};
+    let serviceMonitoring = {};
 
     let mqttClient =null;
 
@@ -53,61 +53,6 @@ export default function ContainerMonitorService(_args=null) {
 
         _registerEventListeners();
         return instance;
-    }
-
-    function checkScalingCondition(manifest){
-        const currentInstances = dockerManager.getContainersByFilter(manifest.name);
-        Console.debug(`${manifest.name}: currentInstances amount:${currentInstances.length} out of`, manifest.scaling?.horizontal?.maxInstances);
-
-        let containersSiblings = currentInstances.filter(instance=> instance["Image"] === manifest.name);
-
-        // Console.debug(`${manifest.name}: containersSiblings`, containersSiblings);
-
-        for(const sibling of containersSiblings){
-            if(serviceMonitoring[sibling["Names"]]){
-                //grab the latest 60s entries, if
-                if(serviceMonitoring[sibling["Names"]].length > 3){
-                    Console.warn("scale decision: have enough entries to grab");
-                    let lastMinuteEntries = serviceMonitoring[sibling["Names"]].slice(-3);
-                    let itemsInPanic = lastMinuteEntries.filter(entry=>entry.status === "panic");
-                    if(itemsInPanic.length >= 3){
-                        Console.error("scale decision: it is time to scale up !");
-
-                        let containerName = dockerManager.prepareAndRunContainer(manifest, {
-                            runningEnv: "development",
-                            forceRestart: false
-                        });
-
-                        // Wait for container readiness
-                        dockerManager.waitForContainerReady(containerName).then(()=>{
-                            dockerManager.waitUntilContainerIsHealthy(containerName).then(isHealthy=>{
-                                if (!isHealthy) {
-                                    throw new Error(`Container ${containerName} failed health checks`);
-                                }
-                                else{
-                                    Console.info(`container ${containerName} is healthy`);
-                                    //once the container is healthy it should be added to a register of running containers and tagged by an instance id
-                                }
-
-                            });
-                        });
-
-                    }
-                    else{
-                        Console.warn(`scale decision: it is NOT time to scale up [${itemsInPanic.length}] ! [${itemsInPanic}]`);
-                    }
-                }
-                else{
-                    Console.warn("scale decision: still not enough", serviceMonitoring[sibling["Names"]].length);
-                }
-            }
-        }
-
-
-        //all containers should be on a panic state for a certain amount of time?
-
-
-
     }
 
     function _registerEventListeners(){
@@ -125,7 +70,7 @@ export default function ContainerMonitorService(_args=null) {
         });
 
         DockerManager.on("event", async function(event){
-            Console.debug(`onEvent '${event.type}' from container event:` /*, event*/);
+            Console.debug(`onEvent '${event.type}' from container event:`, event);
 
             switch(event.type){
                 case "docker-container":{
@@ -147,11 +92,18 @@ export default function ContainerMonitorService(_args=null) {
                                 status = "panic";
                             }
 
-                            if(!Object.hasOwn(serviceMonitoring, event.data.container_name)){
-                                serviceMonitoring[event.data.container_name] = [];
+                            if(!Object.hasOwn(serviceMonitoring, event.data.manifest.name)){
+                                serviceMonitoring[event.data.manifest.name] = {
+                                    scalingEvents:[],
+                                    instances:{}
+                                };
                             }
 
-                            serviceMonitoring[event.data.container_name].push({
+                            if(!Object.hasOwn(serviceMonitoring[event.data.manifest.name].instances, event.data.container_name)){
+                                serviceMonitoring[event.data.manifest.name].instances[event.data.container_name] = [];
+                            }
+
+                            serviceMonitoring[event.data.manifest.name].instances[event.data.container_name].push({
                                 status,
                                 cpuUsage,
                                 time:new Date()
@@ -219,6 +171,191 @@ export default function ContainerMonitorService(_args=null) {
 
     }
 
+    function checkScalingCondition(manifest){
+
+        Console.debug(`!!checkScalingCondition for ${manifest.config.container_name}:`);
+
+
+        //grab the latest 60s entries, if
+        let consistencyWindow = 12; //12 represents 5 seconds each by 12 60 seconds (at least 1 minute of monitoring)
+        //NOTE setting to 3 to speed up the process during development
+        consistencyWindow = 3;
+
+        let shouldScale = haveAllContainersSettledInStatus(manifest.config.container_name, "panic", consistencyWindow, serviceMonitoring);
+        if(shouldScale === null){
+            return Console.error("failed to container status verification.");
+        }
+
+        if(shouldScale){
+            Console.error("scale decision: it is time to scale up !");
+
+            //verify that a previous event of the same type has been given the time to stabilise.
+            let scaleUpPreviousEvents = serviceMonitoring[manifest.config.container_name].scalingEvents.filter(event=>event.type==="scale_up").pop();
+            if(scaleUpPreviousEvents){
+                if (Date.now() - scaleUpPreviousEvents.timestamp < kCooldownMs) {
+                    Console.warn("waiting for previous event to cool down");
+                    return; // skip evaluation
+                }
+            }
+
+            let containerName = dockerManager.prepareAndRunContainer(manifest, {
+                runningEnv: "development",
+                forceRestart: false
+            });
+
+            serviceMonitoring[manifest.config.container_name].scalingEvents.push({
+                type:"scale_up",
+                timestamp: new Date()
+            });
+
+            //need to mark this scale up operation somehow to prevent to be triggered again too early
+            // Console.debug(serviceMonitoring[manifest.config.container_name][]);
+
+            // Wait for container readiness
+            dockerManager.waitForContainerReady(containerName).then(()=>{
+                dockerManager.waitUntilContainerIsHealthy(containerName).then(isHealthy=>{
+                    if (!isHealthy) {
+                        throw new Error(`Container ${containerName} failed health checks`);
+                    }
+                    else{
+                        Console.info(`container ${containerName} is healthy`);
+                        //once the container is healthy, it should be added to a register of running containers and tagged by an instance id
+                    }
+
+                });
+            });
+
+        }
+        else{
+            Console.warn("scale decision: no need to scale");
+        }
+
+
+    }
+
+    /**
+     * Evaluates whether all containers within a given service group have
+     * consistently reported the same status (e.g., 'panic') over their most
+     * recent state updates.
+     *
+     * The method checks the `containersStatesHistory` object, which holds
+     * arrays of timestamped state entries per container, grouped by service.
+     *
+     * @param {string} groupName - The name of the service group (e.g., 'alkimia-backend').
+     * @param {string} statusType - The target status to verify consistency for (e.g., 'panic').
+     * @param {number} consistencyWindow - The number of most recent entries to check per container.
+     * @param {object} containersStatesHistory - A nested object containing state history:
+     *        {
+     *          [groupName]: {
+     *              scalingEvents:[...]
+     *              instances:{
+     *                  [containerId]: [ { status: string, time: string, cpuUsage: number }, ... ]
+     *              }
+     *          }
+     *        }
+     *
+     * @returns {boolean|null} True if all containers in the group are in the specified status
+     *                    for the full length of the consistency window.
+     *
+     * This method is used as a scaling trigger condition — for example, if all containers
+     * in a group are in 'panic' consistently, this could indicate the need to scale up.
+     */
+    function haveAllContainersSettledInStatus(groupName, statusType, consistencyWindow, containersStatesHistory) {
+
+        const groupHistory = containersStatesHistory[groupName];
+
+        if (!groupHistory){
+            Console.error("Containers States History has no group ", groupName);
+            return null;
+        }
+
+        return Object.entries(groupHistory.instances).map(([containerName, history]) => {
+            return {
+                name: containerName,
+                consistentlyInState: history.slice(-consistencyWindow).every(entry => entry.status === statusType)
+            };
+        }).every(entry => entry.consistentlyInState === true);
+    }
+
+
+    function bestCandidateContainer(serviceManifest){
+
+        //grab the latest 60s entries, if
+        let consistencyWindow = 12; //12 represents 5 seconds each by 12 60 seconds (at least 1 minute of monitoring)
+        //NOTE setting to 3 to speed up the process during development
+        consistencyWindow = 3;
+
+        let areThereHealthyInstances = haveAllContainersSettledInStatus(serviceManifest.config.container_name, "healthy", consistencyWindow, serviceMonitoring);
+        if(areThereHealthyInstances === null){
+            return Console.error("failed to check for healthy container status.");
+        }
+
+        if(areThereHealthyInstances){
+            //TODO which one should be chosen from the eventually healthy containers?
+        }
+
+
+        let containers = dockerManager.getContainersByFilter(serviceManifest.config.container_name, "group");
+
+        let containersSiblings = containers.map(container=>container["Names"]);
+
+        Console.debug("!!containers", containersSiblings);
+
+        for(const sibling of containersSiblings){
+            if(serviceMonitoring[sibling["Names"]]){
+                //grab the latest 60s entries, if
+                if(serviceMonitoring[sibling["Names"]].length > 3){
+                    Console.warn("scale decision: have enough entries to grab");
+                    let lastMinuteEntries = serviceMonitoring[sibling["Names"]].slice(-3);
+                    let itemsInPanic = lastMinuteEntries.filter(entry=>entry.status === "panic");
+                    if(itemsInPanic.length >= 3){
+                        Console.error("scale decision: it is time to scale up !");
+
+                        let containerName = dockerManager.prepareAndRunContainer(manifest, {
+                            runningEnv: "development",
+                            forceRestart: false
+                        });
+
+                        // Wait for container readiness
+                        dockerManager.waitForContainerReady(containerName).then(()=>{
+                            dockerManager.waitUntilContainerIsHealthy(containerName).then(isHealthy=>{
+                                if (!isHealthy) {
+                                    throw new Error(`Container ${containerName} failed health checks`);
+                                }
+                                else{
+                                    Console.info(`container ${containerName} is healthy`);
+                                    //once the container is healthy it should be added to a register of running containers and tagged by an instance id
+                                }
+
+                            });
+                        });
+
+
+                    }
+                    else{
+                        Console.warn(`scale decision: it is NOT time to scale up [${itemsInPanic.length}] ! [${itemsInPanic}]`);
+                    }
+                }
+                else{
+                    Console.warn("scale decision: still not enough", serviceMonitoring[sibling["Names"]].length);
+                }
+            }
+        }
+
+        //TODO: improve the algorithm to determine the best service from the group
+        let container = null;
+        if(containers?.length > 0){
+            //TODO: this is not enough... it must determine the best candidate container
+            //NOTE at the moment it is taking the first only
+            container = containers[0];
+        }
+        else{
+            Console.error("no containers running under the group ", serviceManifest.config.container_name);
+        }
+
+        return container;
+
+    }
 
 
     /**
@@ -645,6 +782,11 @@ export default function ContainerMonitorService(_args=null) {
     }
 
     instance.ensureServiceAvailable = ensureServiceAvailable;
+
+    instance.bestCandidateContainer = bestCandidateContainer;
+
+    instance.haveAllContainersSettledInStatus = haveAllContainersSettledInStatus;
+
 
     // Expose public methods
     instance.getContainerCpuUsage = getContainerCpuUsage;

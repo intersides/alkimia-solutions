@@ -493,8 +493,8 @@ export default function DockerManager(_args = null) {
             }
         }
 
-        //this applies to docker images that are built locally from a dockerfile
-        if(manifest.config.dockerfile){
+        //this applies to docker images that are built locally from a dockerfile and that haven't built
+        if (manifest.config.dockerfile && !doesImageExist(manifest.config.container_name)) {
             // Build the image - Use absolute paths and set the working directory to root
             const dockerfilePath = path.resolve(root, manifest.config.dockerfile);
             Console.log(`Building image with Dockerfile at: ${dockerfilePath}`);
@@ -521,6 +521,7 @@ export default function DockerManager(_args = null) {
                 throw error;
             }
         }
+
 
 
         // Prepare volume mounts
