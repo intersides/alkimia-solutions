@@ -28,6 +28,33 @@ const appInstanceId = cryptoService.generateRandomBytes();
 
 const staticDir = `${globalThis.__appRoot}/static`;
 
+
+function consumeMemoryOverTime(){
+    const allocation = [];
+    const stepSize = 64 * 1024 * 1024; // 64 MB
+    const steps = 20; // 20 steps over a minute (64 MB * 20 = 1280 MB)
+    const interval = 5000; // every 5 seconds
+
+    let stepCount = 0;
+
+    Console.log("Starting memory consumption simulation...");
+
+    const intervalId = setInterval(() => {
+        if(stepCount >= steps){
+            clearInterval(intervalId);
+            Console.log("Memory consumption simulation completed.");
+            return;
+        }
+
+        const block = Buffer.alloc(stepSize, "x"); // Allocate memory and fill with dummy data
+        allocation.push(block); // Retain reference so it's not garbage collected
+
+        Console.log(`Step ${stepCount + 1}/${steps}: allocated ${(stepSize / (1024 * 1024)).toFixed(1)} MB, total ${(allocation.length * stepSize / (1024 * 1024)).toFixed(1)} MB`);
+
+        stepCount++;
+    }, interval);
+}
+
 // Function to create CPU load
 async function createLoad(targetIntensity, duration) {
     const start = Date.now();
@@ -205,6 +232,26 @@ Server.getInstance({
                                 message: "CPU stress test started",
                                 intensity: safeIntensity,
                                 duration: safeDuration,
+                                serverTime: new Date().toISOString()
+                            },
+                            mimeType: MimeType.JSON
+                        });
+
+                    }
+                },
+                "/fillMemory": {
+                    isProtected: false,
+                    handler: (req) => {
+                        Console.debug("DEBUG: req.url", req.url);
+
+                        // Run the load in the background
+                        setTimeout(() => {
+                            consumeMemoryOverTime();
+                        }, 0);
+
+                        return HttpResponse({
+                            data:{
+                                message: "Fill memory stress started",
                                 serverTime: new Date().toISOString()
                             },
                             mimeType: MimeType.JSON

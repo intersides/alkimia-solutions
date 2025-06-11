@@ -37,6 +37,11 @@ export default function Manifest(args){
                                 units:"percentage",
                                 panic:95,
                                 stress:80
+                            },
+                            memoryPercent:{
+                                units:"percentage",
+                                panic:95,
+                                stress:80
                             }
                         }
                     },

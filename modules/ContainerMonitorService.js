@@ -81,16 +81,50 @@ export default function ContainerMonitorService(_args=null) {
                             const memoryUsage = await getContainerMemoryUsage(event.data.container_name);
                             const cpuUsage = await getContainerCpuUsage(event.data.container_name);
 
-                            let panicThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.cpuPercent?.panic || kPanicThreshold;
-                            let stressThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.cpuPercent?.stress || kStressThreshold;
+                            let cpuPanicThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.cpuPercent?.panic || kPanicThreshold;
+                            let cpuStressThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.cpuPercent?.stress || kStressThreshold;
+
+                            let memoryPanicThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.memoryPercent?.panic || kPanicThreshold;
+                            let memoryStressThreshold = event.data.manifest?.scaling?.horizontal?.thresholds?.memoryPercent?.stress || kStressThreshold;
 
                             let status = "healthy";
-                            if(cpuUsage > stressThreshold && cpuUsage < panicThreshold){
+
+                            let cpuStatus = "healthy";
+                            if(cpuUsage > cpuStressThreshold && cpuUsage < cpuPanicThreshold){
+                                cpuStatus = "stressed";
+                            }
+                            else if(cpuUsage > cpuPanicThreshold ){
+                                cpuStatus = "panic";
+                            }
+
+                            let memStatus = "healthy";
+                            if(memoryUsage.percentage > memoryStressThreshold && memoryUsage.percentage < memoryPanicThreshold){
+                                memStatus = "stressed";
+                            }
+                            else if(memoryUsage.percentage > memoryPanicThreshold ){
+                                memStatus = "panic";
+                            }
+
+                            if(cpuStatus === "stressed" || memStatus === "stressed"){
                                 status = "stressed";
                             }
-                            else if(cpuUsage > kPanicThreshold){
+
+                            if(cpuStatus === "panic" || memStatus === "panic"){
                                 status = "panic";
                             }
+
+                            Console[`${((_status)=>{
+                                let level = "debug";
+                                if(_status === "stressed"){
+                                    level = "warn";
+                                }
+                                else if(_status === "panic"){
+                                    level = "error";
+                                }
+                                return level;    
+                            })(status)
+                            }`]("current status is:", status);
+
 
                             if(!Object.hasOwn(serviceMonitoring, event.data.manifest.name)){
                                 serviceMonitoring[event.data.manifest.name] = {
@@ -105,6 +139,7 @@ export default function ContainerMonitorService(_args=null) {
 
                             serviceMonitoring[event.data.manifest.name].instances[event.data.container_name].push({
                                 status,
+                                memoryUsage:memoryUsage.percentage,
                                 cpuUsage,
                                 time:new Date()
                             });
@@ -291,69 +326,80 @@ export default function ContainerMonitorService(_args=null) {
         }
 
         if(areThereHealthyInstances){
+            Console.debug("areThereHealthyInstances?", areThereHealthyInstances);
             //TODO which one should be chosen from the eventually healthy containers?
         }
 
 
+        // let containersSiblings = containers.map(container=>container["Names"]);
+        //
+        // Console.debug("!!containers", containersSiblings);
+        //
+        // for(const sibling of containersSiblings){
+        //     if(serviceMonitoring[sibling["Names"]]){
+        //         //grab the latest 60s entries, if
+        //         if(serviceMonitoring[sibling["Names"]].length > 3){
+        //             Console.warn("scale decision: have enough entries to grab");
+        //             let lastMinuteEntries = serviceMonitoring[sibling["Names"]].slice(-3);
+        //             let itemsInPanic = lastMinuteEntries.filter(entry=>entry.status === "panic");
+        //             if(itemsInPanic.length >= 3){
+        //                 Console.error("scale decision: it is time to scale up !");
+        //
+        //                 let containerName = dockerManager.prepareAndRunContainer(manifest, {
+        //                     runningEnv: "development",
+        //                     forceRestart: false
+        //                 });
+        //
+        //                 // Wait for container readiness
+        //                 dockerManager.waitForContainerReady(containerName).then(()=>{
+        //                     dockerManager.waitUntilContainerIsHealthy(containerName).then(isHealthy=>{
+        //                         if (!isHealthy) {
+        //                             throw new Error(`Container ${containerName} failed health checks`);
+        //                         }
+        //                         else{
+        //                             Console.info(`container ${containerName} is healthy`);
+        //                             //once the container is healthy it should be added to a register of running containers and tagged by an instance id
+        //                         }
+        //
+        //                     });
+        //                 });
+        //
+        //
+        //             }
+        //             else{
+        //                 Console.warn(`scale decision: it is NOT time to scale up [${itemsInPanic.length}] ! [${itemsInPanic}]`);
+        //             }
+        //         }
+        //         else{
+        //             Console.warn("scale decision: still not enough", serviceMonitoring[sibling["Names"]].length);
+        //         }
+        //     }
+        // }
+
         let containers = dockerManager.getContainersByFilter(serviceManifest.config.container_name, "group");
 
-        let containersSiblings = containers.map(container=>container["Names"]);
-
-        Console.debug("!!containers", containersSiblings);
-
-        for(const sibling of containersSiblings){
-            if(serviceMonitoring[sibling["Names"]]){
-                //grab the latest 60s entries, if
-                if(serviceMonitoring[sibling["Names"]].length > 3){
-                    Console.warn("scale decision: have enough entries to grab");
-                    let lastMinuteEntries = serviceMonitoring[sibling["Names"]].slice(-3);
-                    let itemsInPanic = lastMinuteEntries.filter(entry=>entry.status === "panic");
-                    if(itemsInPanic.length >= 3){
-                        Console.error("scale decision: it is time to scale up !");
-
-                        let containerName = dockerManager.prepareAndRunContainer(manifest, {
-                            runningEnv: "development",
-                            forceRestart: false
-                        });
-
-                        // Wait for container readiness
-                        dockerManager.waitForContainerReady(containerName).then(()=>{
-                            dockerManager.waitUntilContainerIsHealthy(containerName).then(isHealthy=>{
-                                if (!isHealthy) {
-                                    throw new Error(`Container ${containerName} failed health checks`);
-                                }
-                                else{
-                                    Console.info(`container ${containerName} is healthy`);
-                                    //once the container is healthy it should be added to a register of running containers and tagged by an instance id
-                                }
-
-                            });
-                        });
-
-
-                    }
-                    else{
-                        Console.warn(`scale decision: it is NOT time to scale up [${itemsInPanic.length}] ! [${itemsInPanic}]`);
-                    }
-                }
-                else{
-                    Console.warn("scale decision: still not enough", serviceMonitoring[sibling["Names"]].length);
-                }
-            }
-        }
-
         //TODO: improve the algorithm to determine the best service from the group
-        let container = null;
         if(containers?.length > 0){
-            //TODO: this is not enough... it must determine the best candidate container
-            //NOTE at the moment it is taking the first only
-            container = containers[0];
+            let container = null;
+
+            if(containers?.length === 1){
+                container = containers[0];
+            }
+            else{
+                //TODO: it must determine the best candidate container
+                //NOTE at the moment it is taking the first only
+                container = containers[0];
+            }
+
+
+            return container;
+
         }
         else{
             Console.error("no containers running under the group ", serviceManifest.config.container_name);
+            return null;
         }
 
-        return container;
 
     }
 
@@ -380,9 +426,27 @@ export default function ContainerMonitorService(_args=null) {
     }
 
     /**
-     * Get memory usage for a running container
-     * @param {string} containerName - Name of the container to monitor
-     * @returns {Promise<Object>} - Memory usage object with used, limit and percentage
+     * Asynchronously retrieves memory usage statistics for a given Docker container.
+     *
+     * This method uses `docker stats` with `--no-stream` to fetch a single snapshot
+     * of memory usage, parses the output, converts memory values into bytes,
+     * and calculates the usage percentage.
+     *
+     * @param {string} containerName - The name or ID of the Docker container to inspect.
+     *
+     * @returns {Promise<{
+     *   used: string,         // Original used memory string (e.g. "50MiB")
+     *   limit: string,        // Original memory limit string (e.g. "2GiB")
+     *   usedBytes: number,    // Parsed used memory in bytes
+     *   limitBytes: number,   // Parsed memory limit in bytes
+     *   percentage: number    // Memory usage as a percentage of the limit
+     * } | null>} Returns memory usage data or null if the command fails.
+     *
+     * @example
+     * const memStats = await getContainerMemoryUsage("my-service-123");
+     * if (memStats && memStats.percentage > 90) {
+     *   triggerWarning("High memory usage!");
+     * }
      */
     async function getContainerMemoryUsage(containerName) {
         try {

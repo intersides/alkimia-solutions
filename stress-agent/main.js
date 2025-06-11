@@ -57,6 +57,53 @@ async function runStressTestOnBackend() {
 
 }
 
+async function fillMemoryTestOnBackend() {
+
+    return new Promise(async (resolve, reject) => {
+
+        try {
+            let targetUrl = "https://server.alkimia.localhost/fillMemory";
+            // Call the stress endpoint with high intensity for 30 seconds
+            const response = await fetch(targetUrl);
+            const result = await response.json();
+            console.log("Fill backend memory started:", result);
+            resolve(result);
+        } catch (error) {
+            console.error("Error starting fill backend memory:", error);
+            reject(error);
+        }
+    });
+
+}
+
+async function stressCpuAnyMemory() {
+
+    return new Promise(async (resolve, reject) => {
+
+        try {
+            let targetUrlMem = "https://server.alkimia.localhost/fillMemory";
+            // Call the stress endpoint with high intensity for 30 seconds
+            const responseMem = await fetch(targetUrlMem);
+            const resultMem = await responseMem.json();
+            console.log("Fill backend memory started:", resultMem);
+
+            let targetUrlCpu = "https://server.alkimia.localhost/stress?intensity=100&duration=120000";
+            // Call the stress endpoint with high intensity for 30 seconds
+            const responseCpu = await fetch(targetUrlCpu);
+            const resultCpu = await responseCpu.json();
+            console.log("Stress test started:", resultCpu);
+            resolve( {
+                resultMem,
+                resultCpu
+            });
+        } catch (error) {
+            console.error("Error starting fill backend memory:", error);
+            reject(error);
+        }
+    });
+
+}
+
 async function runStressIncrementalTestOnBackend() {
 
     return new Promise(async (resolve, reject) => {
@@ -139,6 +186,38 @@ Server.getInstance({
 
                         return HttpResponse({
                             data: { msg: "should stress the backend" }
+                        });
+
+
+                    }
+                },
+                "/fillUpBackendMemory":{
+                    handler: async function(){
+
+                        fillMemoryTestOnBackend().then(result=>{
+                            Console.debug("result" ,result);
+                        }).catch(error=>{
+                            Console.error(error.message);
+                        });
+
+                        return HttpResponse({
+                            data: { msg: "should stress memory of the backend" }
+                        });
+
+
+                    }
+                },
+                "/stressCpuAnyMemory":{
+                    handler: async function(){
+
+                        stressCpuAnyMemory().then(result=>{
+                            Console.debug("result" ,result);
+                        }).catch(error=>{
+                            Console.error(error.message);
+                        });
+
+                        return HttpResponse({
+                            data: { msg: "should stress memory of the backend" }
                         });
 
 
