@@ -103,7 +103,9 @@ export default function Router(args){
             let assetsDir = staticDir;
             const handler = _getHandler(request);
             if(handler){
-                resolve(handler(request));
+                let response = handler(request);
+                response.requestId = request.headers["request_id"] || null;
+                resolve(response);
             }
             else{
                 let urlPath = request.url.path.replace(/^\//, "");
@@ -205,6 +207,7 @@ export default function Router(args){
                         data: data,
                         mimeType
                     });
+                    response.requestId = request.headers["request_id"] || null;
                     resolve(response);
 
                 });

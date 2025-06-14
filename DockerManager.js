@@ -221,6 +221,30 @@ export default function DockerManager(_args = null) {
 
     }
 
+    instance.getContainerFromExternalPort = function(port){
+
+        const command = `docker ps --format '{{json .}}' | jq -c 'select(.Ports | contains("${port}"))'`;
+        const result = execSync(command, { encoding: "utf8" });
+        if(!result){
+            return null;
+        }
+
+        let containers = result
+            .trim()
+            .split("\n")
+            .filter(line => line.trim() !== "") // Handle empty lines
+            .map(line => JSON.parse(line));
+
+        if(containers.length !== 1){
+            Console.error(`unexpected numbers of running containers on external port ${port}`);
+            return null;
+        }
+        else{
+            return  containers[0];
+        }
+
+    };
+
     /**
      *
      * @param {string} filterValue

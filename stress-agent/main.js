@@ -61,13 +61,27 @@ async function fillMemoryTestOnBackend() {
 
     return new Promise(async (resolve, reject) => {
 
+        let intercalRef = setInterval(async function(){
+            await fetch("https://server.alkimia.localhost/ping");
+        }, 2000);
+
         try {
             let targetUrl = "https://server.alkimia.localhost/fillMemory";
             // Call the stress endpoint with high intensity for 30 seconds
             const response = await fetch(targetUrl);
-            const result = await response.json();
-            console.log("Fill backend memory started:", result);
-            resolve(result);
+
+            if (!response.ok) {
+                console.error(`HTTP error: ${response.status} ${response.statusText}`);
+                clearInterval(intercalRef);
+                reject(new Error(`Request failed: ${response.status}`));
+            }
+            else{
+                const result = await response.json();
+                console.log("Fill backend memory completed:", result);
+                clearInterval(intercalRef);
+                resolve(result);
+            }
+
         } catch (error) {
             console.error("Error starting fill backend memory:", error);
             reject(error);

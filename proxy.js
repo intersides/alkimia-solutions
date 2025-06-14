@@ -18,6 +18,7 @@ import Manifest from "./services-manifest.js";
 import {setIntervalImmediate} from "@workspace/common/utils.js";
 import {HttpResponse} from "@workspace/node/ServerResponse.js";
 import ProxyRouter from "./ProxyRouter.js";
+import CryptoService from "@workspace/common/services/CryptoService.js";
 
 dotenv.config();
 
@@ -109,19 +110,27 @@ function proxyRequest(serviceManifest, req, res){
         Console.debug("request completed on container:", _container["Names"]);
     })(container));
 
+    //used to identify the request when calculating latency
+    let requestId = CryptoService.getSingleton().generateRandomBytes();
+
     const proxyReq = http.request({
         host: serviceManifest.config.host,
         port: externalPort,
         path: req.url,
         method: req.method,
-        headers: req.headers,
+        headers: {...req.headers,  request_id:requestId },
         agent: false  // Disable keep-alive
     }, (proxyRes) => {
         // Forward the response status and headers
         Console.log(`forwarding to... ${serviceManifest.config.host}:${externalPort} is completed`);
+
+        // Console.debug("proxyRes.request_id", proxyRes._httpMessage.getHeader("request_id"));
+        let headerRequestId = proxyRes.req.getHeader("request_id");
+
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
         // Pipe the response data
         proxyRes.pipe(res);
+        containerMonitorService.storeLatency(req, externalPort, headerRequestId);
         Console.info("response sent");
     });
 
@@ -144,6 +153,8 @@ function proxyRequest(serviceManifest, req, res){
     })(err, container));
 
     // Finally, forward the request body
+    containerMonitorService.storeLatency(req, externalPort, requestId);
+
     req.pipe(proxyReq);
 
 }

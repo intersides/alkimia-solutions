@@ -134,10 +134,13 @@ export default function ContainerMonitorService(_args=null) {
                             }
 
                             if(!Object.hasOwn(serviceMonitoring[event.data.manifest.name].instances, event.data.container_name)){
-                                serviceMonitoring[event.data.manifest.name].instances[event.data.container_name] = [];
+                                serviceMonitoring[event.data.manifest.name].instances[event.data.container_name] = {
+                                    statuses:[],
+                                    latency:{}
+                                };
                             }
 
-                            serviceMonitoring[event.data.manifest.name].instances[event.data.container_name].push({
+                            serviceMonitoring[event.data.manifest.name].instances[event.data.container_name].statuses.push({
                                 status,
                                 memoryUsage:memoryUsage.percentage,
                                 cpuUsage,
@@ -304,10 +307,10 @@ export default function ContainerMonitorService(_args=null) {
             return null;
         }
 
-        return Object.entries(groupHistory.instances).map(([containerName, history]) => {
+        return Object.entries(groupHistory.instances).map(([containerName, markers]) => {
             return {
                 name: containerName,
-                consistentlyInState: history.slice(-consistencyWindow).every(entry => entry.status === statusType)
+                consistentlyInState: markers.statuses.slice(-consistencyWindow).every(entry => entry.status === statusType)
             };
         }).every(entry => entry.consistentlyInState === true);
     }
@@ -845,9 +848,56 @@ export default function ContainerMonitorService(_args=null) {
 
     }
 
+    function storeLatency(request, port, requestId){
+        let serviceInstance = dockerManager.getContainerFromExternalPort(port);
+
+        if(serviceInstance){
+
+            if(!Object.hasOwn(serviceMonitoring, serviceInstance["Image"])){
+                serviceMonitoring[serviceInstance["Image"]] = {
+                    scalingEvents:[],
+                    instances:{
+                        [serviceInstance["Names"]]:{
+                            statuses:[],
+                            latency:{}
+                        }
+                    }
+                };
+            }
+
+            if(!Object.hasOwn(serviceMonitoring[serviceInstance["Image"]].instances, serviceInstance["Names"])){
+                serviceMonitoring[serviceInstance["Image"]].instances = {
+                    [serviceInstance["Names"]]:{
+                        statuses:[],
+                        latency:{}
+                    }
+                };
+            }
+
+            if(!Object.hasOwn(serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency, request.method+"_"+request.url)){
+                serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url] = {};
+            }
+
+            if(!Object.hasOwn(serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url], requestId)){
+                serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url][requestId] = {
+                    start:Date.now(),
+                    latencyMs:null
+                };
+            }
+            if(serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url][requestId].start){
+                serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url][requestId].latencyMs = Date.now() - serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url][requestId].start;
+            }
+
+            return serviceMonitoring[serviceInstance["Image"]].instances[serviceInstance["Names"]].latency[request.method+"_"+request.url][requestId].latencyMs;
+
+        }
+    }
+
     instance.ensureServiceAvailable = ensureServiceAvailable;
 
     instance.bestCandidateContainer = bestCandidateContainer;
+
+    instance.storeLatency = storeLatency;
 
     instance.haveAllContainersSettledInStatus = haveAllContainersSettledInStatus;
 

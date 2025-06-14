@@ -30,29 +30,34 @@ const staticDir = `${globalThis.__appRoot}/static`;
 
 
 function consumeMemoryOverTime(){
-    const allocation = [];
-    const stepSize = 64 * 1024 * 1024; // 64 MB
-    const steps = 20; // 20 steps over a minute (64 MB * 20 = 1280 MB)
-    const interval = 5000; // every 5 seconds
+    return new Promise((resolve, reject) => {
 
-    let stepCount = 0;
+        const allocation = [];
+        const stepSize = 64 * 1024 * 1024; // 64 MB
+        const steps = 20; // 20 steps over a minute (64 MB * 20 = 1280 MB)
+        const interval = 5000; // every 5 seconds
 
-    Console.log("Starting memory consumption simulation...");
+        let stepCount = 0;
 
-    const intervalId = setInterval(() => {
-        if(stepCount >= steps){
-            clearInterval(intervalId);
-            Console.log("Memory consumption simulation completed.");
-            return;
-        }
+        Console.log("Starting memory consumption simulation...");
 
-        const block = Buffer.alloc(stepSize, "x"); // Allocate memory and fill with dummy data
-        allocation.push(block); // Retain reference so it's not garbage collected
+        const intervalId = setInterval(() => {
+            if(stepCount >= steps){
+                clearInterval(intervalId);
+                Console.log("Memory consumption simulation completed.");
+                resolve();
+                // return;
+            }
 
-        Console.log(`Step ${stepCount + 1}/${steps}: allocated ${(stepSize / (1024 * 1024)).toFixed(1)} MB, total ${(allocation.length * stepSize / (1024 * 1024)).toFixed(1)} MB`);
+            const block = Buffer.alloc(stepSize, "x"); // Allocate memory and fill with dummy data
+            allocation.push(block); // Retain reference so it's not garbage collected
 
-        stepCount++;
-    }, interval);
+            Console.log(`Step ${stepCount + 1}/${steps}: allocated ${(stepSize / (1024 * 1024)).toFixed(1)} MB, total ${(allocation.length * stepSize / (1024 * 1024)).toFixed(1)} MB`);
+
+            stepCount++;
+        }, interval);
+    });
+
 }
 
 // Function to create CPU load
@@ -241,21 +246,34 @@ Server.getInstance({
                 },
                 "/fillMemory": {
                     isProtected: false,
-                    handler: (req) => {
+                    handler: async (req) => {
                         Console.debug("DEBUG: req.url", req.url);
 
                         // Run the load in the background
-                        setTimeout(() => {
-                            consumeMemoryOverTime();
-                        }, 0);
+                        // setTimeout(async () => {
+                        // }, 0);
+                        let response = null;
+                        try{
+                            await consumeMemoryOverTime();
+                            response =HttpResponse({
+                                data:{
+                                    message: "Fill memory stress completed",
+                                    serverTime: new Date().toISOString()
+                                },
+                                mimeType: MimeType.JSON
+                            });
+                        }
+                        catch(e){
+                            response =HttpResponse({
+                                data:{
+                                    message: `Fill memory stress completed with error ${e.message}`,
+                                    serverTime: new Date().toISOString()
+                                },
+                                mimeType: MimeType.JSON
+                            });
+                        }
 
-                        return HttpResponse({
-                            data:{
-                                message: "Fill memory stress started",
-                                serverTime: new Date().toISOString()
-                            },
-                            mimeType: MimeType.JSON
-                        });
+                        return response;
 
                     }
                 },

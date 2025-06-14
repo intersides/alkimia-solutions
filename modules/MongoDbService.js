@@ -181,6 +181,8 @@ export default function MongoDbService(_args=null){
 
 
     function storeEvent(_eventType, eventData){
+        Console.debug("storeEvent disabled");
+        return;
         if(events){
             events.insertOne(
                 { type: _eventType, ...eventData },
